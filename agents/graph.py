@@ -3,8 +3,10 @@
 import json
 import re
 from contextlib import nullcontext
+from uuid import UUID
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.graph import END, START, StateGraph
 from markdown_it import MarkdownIt
 
@@ -16,6 +18,25 @@ from .state import ChatState, Route
 MAX_RESEARCH_ROUNDS = 2
 MAX_SOURCE_EXCERPT = 1000
 NO_EVIDENCE = "관련된 언리얼 지식이 충분하지 않습니다. 엔진 버전과 오류 로그 또는 관련 기술·해결 사례를 등록해 주세요."
+
+
+def _prompt(system: str, name: str):
+    # 시스템 지시는 메시지 객체로 넣어 중괄호를 템플릿 변수로 해석하지 않는다.
+    return ChatPromptTemplate.from_messages([SystemMessage(content=system), MessagesPlaceholder("history"),
+                                             ("human", "{input}")]).with_config(run_name=name)
+
+
+SUPERVISOR_TEMPLATE = _prompt(SUPERVISOR_PROMPT, "supervisor_prompt")
+WRITER_TEMPLATE = _prompt(WRITER_PROMPT, "writer_prompt")
+
+
+def run_config(source: str, *, run_id: UUID | None = None, engine_version: str | None = None) -> dict:
+    """그래프 실행 설정. LANGSMITH_TRACING=true이면 이 이름·태그·metadata로 LangSmith에 기록된다."""
+    config = {"recursion_limit": 12, "run_name": "tsukuyomi_chat", "tags": [source],
+              "metadata": {"source": source, "engine_version": engine_version or "전체"}}
+    if run_id:
+        config["run_id"] = run_id
+    return config
 
 
 def _history(state):
@@ -59,10 +80,10 @@ def build_graph(llm, retrieve=None):
             # 자료 본문은 제어 노드에 전달하지 않는다.
             summary = [{"title": item["title"], "engine_version": item.get("engine_version"),
                         "kind": item.get("kind")} for item in state.get("evidence", [])]
-            route = router.invoke([SystemMessage(content=SUPERVISOR_PROMPT), *_history(state),
-                                   HumanMessage(content=json.dumps({"question": state["question"],
-                                                "engine_version": state.get("engine_version"),
-                                                "rounds": rounds, "sources": summary}, ensure_ascii=False))])
+            messages = SUPERVISOR_TEMPLATE.invoke({"history": _history(state), "input": json.dumps(
+                {"question": state["question"], "engine_version": state.get("engine_version"),
+                 "rounds": rounds, "sources": summary}, ensure_ascii=False)}).to_messages()
+            route = router.invoke(messages)
             if rounds == 0 and route.worker == "answer":
                 # 빈 검색어는 research에서 원문을 사용하므로 Route의 검색어 길이 제한을 피한다.
                 route = Route(worker="technique", reason="답변 전 검색이 필요합니다.")
@@ -97,10 +118,10 @@ def build_graph(llm, retrieve=None):
             prefix = f"선택한 엔진 버전({state['engine_version']})에서 " if state.get("engine_version") else ""
             return {"answer": prefix + NO_EVIDENCE, "sources": [], "status": "insufficient"}
         numbered = [{"number": index, **item} for index, item in enumerate(evidence, 1)]
-        response = llm.invoke([SystemMessage(content=WRITER_PROMPT), *_history(state),
-                               HumanMessage(content=json.dumps({"question": state["question"],
-                                            "engine_version": state.get("engine_version"),
-                                            "evidence": numbered}, ensure_ascii=False))])
+        messages = WRITER_TEMPLATE.invoke({"history": _history(state), "input": json.dumps(
+            {"question": state["question"], "engine_version": state.get("engine_version"),
+             "evidence": numbered}, ensure_ascii=False)}).to_messages()
+        response = llm.invoke(messages)
         if local_retrieval:
             _check_corpus(state.get("corpus_sha256"))
         text = response.content if isinstance(response.content, str) else ""

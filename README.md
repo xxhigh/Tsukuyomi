@@ -62,6 +62,20 @@ python app.py --engine-version 5.5 "셰이더 오류 관련 기록을 찾아줘"
 
 `--engine-version`은 등록 버전과 정확히 일치하는 자료만 검색합니다. 생략하면 전체 검색이며 `python app.py --engine-version 5.5`로 대화 모드를 시작하면 세션 동안 같은 필터를 유지합니다. 버전은 앞뒤 공백 제거 후 1~50자여야 합니다. `python app.py --help`는 키 입력 없이 도움말을 표시하며, `--`로 시작하는 질문은 `python app.py -- "--로 시작하는 질문"`처럼 전달합니다.
 
+## LangSmith 추적
+
+Supervisor·검색·답변은 LangChain/LangGraph로 실행되므로 `.env`에 아래를 설정하고 서버나 CLI를 다시 시작하면 LangSmith에 기록됩니다. 기본값은 꺼져 있습니다.
+
+```bash
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=lsv2_...
+LANGSMITH_PROJECT=tsukuyomi-for-unreal
+```
+
+- 실행 이름은 `tsukuyomi_chat`이며 `api`/`cli` 태그와 `engine_version` metadata가 붙습니다. 각 노드(`supervisor`, `technique`, `troubleshooting`, `answer`) 아래에 `supervisor_prompt`/`writer_prompt`와 LLM 호출이 표시됩니다. 연결 확인은 `llm_connection_check`로 기록됩니다.
+- API 응답의 `run_id`가 LangSmith trace ID입니다. 하이픈 없는 UUID이므로 LangSmith에서는 하이픈을 넣은 형식으로 검색합니다.
+- **켜면 질문·대화 이력·검색 원문(팀 문서 내용)·답변이 LangSmith 서버로 전송됩니다.** LLM API 키와 내부 접근 토큰은 기록되지 않습니다. 실행 구조와 시간만 남기려면 `LANGSMITH_HIDE_INPUTS=true`, `LANGSMITH_HIDE_OUTPUTS=true`를 함께 설정합니다.
+
 ## 내부 API 접근 설정
 
 `.env`의 `INTERNAL_API_TOKEN`에 임의의 공유 토큰을 설정하고 서버를 재시작하면 모든 `/api/*` 요청에 접근 확인을 적용합니다. health/config 조회도 포함합니다. 빈 값이면 기존 로컬 개발 방식으로 실행합니다.
@@ -179,7 +193,7 @@ python -m agents.evaluate outputs/evaluation/cases.json --k 5 --output outputs/r
 
 ## 저장 범위와 미정 사항
 
-입력한 접근 토큰·LLM 키와 대화는 브라우저 메모리에만 두며 새로고침 시 지워집니다. 서버는 요청 중에만 입력 키를 사용하고, 기본 트레이스에는 실행 ID·상태·담당 이름만 기록합니다. 질문과 검색 문맥은 선택한 외부 LLM으로 전송됩니다. `outputs/traces/`는 운영 상태 기록용입니다.
+입력한 접근 토큰·LLM 키와 대화는 브라우저 메모리에만 두며 새로고침 시 지워집니다. 서버는 요청 중에만 입력 키를 사용하고, 기본 트레이스에는 실행 ID·상태·담당 이름만 기록합니다. 질문과 검색 문맥은 선택한 외부 LLM으로 전송되며, LangSmith 추적을 켜면 LangSmith에도 전송됩니다. `outputs/traces/`는 운영 상태 기록용입니다.
 
 공유 접근 토큰은 선택적으로 설정할 수 있으며, SSO·사용자별 권한은 미구현입니다. 제공자 확정, 지식 승인·사용자별 편집 권한, 버전 호환성 판정, 검색 평가 등은 [작업 계획](docs/WORK_PLAN.md)에 TODO로 남겼습니다.
 

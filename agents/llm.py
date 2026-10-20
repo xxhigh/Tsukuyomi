@@ -16,5 +16,6 @@ def create_llm(api_key: str, model: str | None = None):
 def check_connection(llm) -> None:
     """팀 자료 없이 Supervisor와 같은 tool calling 응답 형식을 검사한다."""
     result = llm.with_structured_output(Route, method="function_calling").invoke(
-        "Connection check only. Call Route with worker='answer', query='', reason='OK'.")
+        "Connection check only. Call Route with worker='answer', query='', reason='OK'.",
+        config={"run_name": "llm_connection_check", "tags": ["api"]})
     Route.model_validate(result)

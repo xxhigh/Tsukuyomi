@@ -5,7 +5,7 @@ import re
 from hmac import compare_digest
 from pathlib import Path
 from typing import Literal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
@@ -20,6 +20,7 @@ load_dotenv()
 
 from agents import build_graph, documents, knowledge, trace  # noqa: E402
 from agents.docs import CorpusChangedError, DocumentIdConflictError  # noqa: E402
+from agents.graph import run_config  # noqa: E402
 from agents.llm import check_connection, create_llm  # noqa: E402
 from openai import APIConnectionError, APIStatusError, AuthenticationError, RateLimitError  # noqa: E402
 
@@ -200,7 +201,8 @@ def chat(payload: ChatRequest, x_llm_api_key: str | None = Header(default=None))
         result = graph.invoke({"question": payload.question,
                                "engine_version": payload.engine_version,
                                "history": [message.model_dump() for message in payload.history]},
-                              config={"recursion_limit": 12})
+                              # LangSmith trace ID를 응답의 run_id와 맞춰 로컬 트레이스와 연결한다.
+                              config=run_config("api", run_id=UUID(run_id), engine_version=payload.engine_version))
     except CorpusChangedError:
         raise HTTPException(409, "답변을 만들던 중 지식이 변경되었습니다. 같은 질문을 다시 보내 주세요.") from None
     except DocumentIdConflictError as error:

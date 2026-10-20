@@ -6,11 +6,13 @@ import sys
 from getpass import getpass
 
 from dotenv import load_dotenv
+from langchain_core.tracers.langchain import wait_for_all_tracers
 
 load_dotenv()
 
 from agents import build_graph  # noqa: E402
 from agents.docs import CorpusChangedError  # noqa: E402
+from agents.graph import run_config  # noqa: E402
 from agents.llm import create_llm  # noqa: E402
 
 
@@ -36,7 +38,7 @@ def main():
     def ask(question):
         result = graph.invoke({"question": question, "history": history[-10:],
                                "engine_version": args.engine_version},
-                              config={"recursion_limit": 12})
+                              config=run_config("cli", engine_version=args.engine_version))
         print("\n" + result["answer"])
         if result["status"] == "invalid_citations":
             return 1
@@ -64,6 +66,8 @@ def main():
     except Exception:
         print("요청에 실패했습니다. API 키, 모델 설정, 문서 인덱싱 환경을 확인해 주세요.")
         return 1
+    finally:
+        wait_for_all_tracers()  # 단일 질문 실행이 LangSmith 전송 전에 끝나지 않게 한다.
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -208,6 +208,14 @@
 - [x] `AGENTS.md`·원본 PDF/Markdown의 SHA-256이 일치하며 별도 검증 서버를 종료했다. 실제 외부 LLM·임베딩·운영 인덱스를 사용하지 않았다. Python 코드는 변경하지 않아 기존 회귀 결과를 유지한다.
 - `AGENTS.md`·원본 문서·Python/API/RAG는 변경하지 않는다. 요청한 초기 화면에 한정하며 추가 확인이 필요한 사항은 없다.
 
+## LangChain 프롬프트·LangSmith 추적 작업 계획
+- [x] 작업 전 지침·LLM 호출·그래프 실행 설정·트레이스 정책을 확인했다. 기존 LangChain/LangGraph를 유지하며 `langsmith`는 `langchain-core` 의존성으로 설치되어 있다.
+- [x] `agents/graph.py`에서 Supervisor/답변 프롬프트를 `ChatPromptTemplate`(시스템 지시 + 대화 이력 + 입력)로 구성했다. 시스템 지시는 메시지 객체로 넣어 중괄호를 해석하지 않는다. 메시지 내용·순서와 출처 검증은 유지했다.
+- [x] `run_config`로 CLI·API에 공통 실행 설정(이름·태그·엔진 버전 metadata, recursion_limit 12)을 적용했다. API `run_id`를 LangSmith trace ID로 사용하고, CLI는 종료 전 trace 전송을 기다린다. 연결 확인은 `llm_connection_check`로 기록한다.
+- [x] LangSmith는 `LANGSMITH_TRACING=true`일 때만 동작한다. 데이터 전송 범위와 입력·출력 숨김 설정을 `.env.example`·README에 명시했다. 새 직접 의존성은 없다.
+- [x] `tests/test_tracing.py`에서 모의 HTTP `ChatOpenAI`로 전체 그래프를 실행해 trace ID·이름·metadata, 프롬프트 단계 수·메시지 순서, 모델 설정·질문은 기록되고 API 키는 기록되지 않음을 확인했다. 이 checkout의 전체 테스트 12개가 통과했고 CLI/API import·도움말을 확인했다. 실제 외부 LLM·LangSmith 전송은 실행하지 않았다.
+- TODO: 팀 자료를 외부 LangSmith로 보내도 되는지(클라우드/자체 호스팅, 입력·출력 숨김 여부)는 운영 전에 결정한다.
+
 ## 구현 기준
 - Supervisor가 기술/오류 검색 담당과 재검색 여부를 결정한다. 검색은 최대 2회다.
 - bge-m3 및 기존 FAISS + bigram 검색을 재사용한다.
