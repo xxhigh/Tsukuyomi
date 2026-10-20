@@ -1,9 +1,11 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import DocumentLibrary from './DocumentLibrary.vue'
+import { ENGINE_VERSIONS as engineVersions } from './engineVersions.js'
 
 const tab = ref('chat')
 const apiKey = ref('')
+const showApiKey = ref(false)
 const model = ref('')
 const serverKey = ref(false)
 const accessToken = ref('')
@@ -27,8 +29,9 @@ const workspaceEpoch = ref(0)
 const documentSaving = ref(false)
 const documentsError = ref('')
 const engineVersion = ref('')
-const engineVersions = computed(() => [...new Set([...entries.value, ...documents.value].map(item => item.engine_version))]
-  .sort((left, right) => left.localeCompare(right, undefined, { numeric: true })))
+const versionOptions = ['', ...engineVersions]
+const versionMenuOpen = ref(false)
+const versionPicker = ref(null)
 const busy = ref(false)
 const checking = ref(false)
 const connectionNotice = ref('')
@@ -107,6 +110,7 @@ function clearWorkspace() {
   workspaceEpoch.value += 1
   question.value = ''
   apiKey.value = ''
+  showApiKey.value = false
   model.value = ''
   serverKey.value = false
   engineVersion.value = ''
@@ -149,7 +153,52 @@ function disconnect() {
 }
 
 onMounted(connect)
-onUnmounted(() => chatController?.abort())
+onMounted(() => document.addEventListener('pointerdown', onOutsidePointer))
+onUnmounted(() => {
+  chatController?.abort()
+  document.removeEventListener('pointerdown', onOutsidePointer)
+})
+
+function versionItems() {
+  return [...(versionPicker.value?.querySelectorAll('[role="menuitemradio"]') ?? [])]
+}
+
+async function openVersionMenu() {
+  versionMenuOpen.value = true
+  await nextTick()
+  const items = versionItems()
+  ;(items[versionOptions.indexOf(engineVersion.value)] ?? items[0])?.focus()
+}
+
+function closeVersionMenu(refocus = true) {
+  versionMenuOpen.value = false
+  if (refocus) versionPicker.value?.querySelector('.version-trigger')?.focus()
+}
+
+function chooseVersion(version) {
+  engineVersion.value = version
+  closeVersionMenu()
+}
+
+function onOutsidePointer(event) {
+  if (versionMenuOpen.value && !versionPicker.value?.contains(event.target)) closeVersionMenu(false)
+}
+
+function onVersionKeydown(event) {
+  if (!versionMenuOpen.value) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeVersionMenu()
+  } else if (event.key === 'Tab') {
+    closeVersionMenu(false)
+  } else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+    event.preventDefault()
+    const items = versionItems()
+    const current = items.indexOf(document.activeElement)
+    const next = { ArrowDown: current + 1, ArrowUp: current - 1, Home: 0, End: items.length - 1 }[event.key]
+    items[(next + items.length) % items.length]?.focus()
+  }
+}
 
 async function checkLLM() {
   if (!configured.value || busy.value || mutating.value || loading.value) return
@@ -289,30 +338,25 @@ function onQuestionEnter(event) {
   <a class="skip-link" href="#workspace">작업 영역으로 이동</a>
   <div class="shell">
     <aside class="sidebar" aria-label="도구 메뉴">
-      <div class="identity"><span class="symbol" aria-hidden="true">T / U</span><div><strong>Tsukuyomi for Unreal</strong><span>팀 기술 노트</span></div></div>
+      <div class="identity"><strong>Tsukuyomi for Unreal</strong></div>
       <p class="eyebrow">WORKSPACE</p>
       <nav aria-label="작업 선택">
         <button :class="{ selected: tab === 'chat' }" :aria-pressed="tab === 'chat'" :disabled="mutating" @click="tab = 'chat'">대화<span aria-hidden="true">↗</span></button>
         <button :class="{ selected: tab === 'knowledge' }" :aria-pressed="tab === 'knowledge'" :disabled="mutating" @click="tab = 'knowledge'">지식 저장소<span>{{ entries.length }}</span></button>
         <button :class="{ selected: tab === 'settings' }" :aria-pressed="tab === 'settings'" :disabled="mutating" @click="tab = 'settings'">설정<span aria-hidden="true">↗</span></button>
       </nav>
-      <section class="search-settings" aria-label="검색 범위">
-        <label for="search-version">검색 엔진 버전</label>
-        <input id="search-version" v-model="engineVersion" list="engine-versions" maxlength="50" placeholder="전체 버전" :disabled="busy || !accessReady" aria-describedby="version-help" />
-        <datalist id="engine-versions"><option v-for="version in engineVersions" :key="version" :value="version"></option></datalist>
-        <p id="version-help" class="hint">입력한 버전과 정확히 일치하는 기록만 검색합니다. 비우면 전체를 검색합니다.</p>
-      </section>
       <footer class="sidebar-footer">INTERNAL TOOL <span>Unreal Engine RAG</span></footer>
     </aside>
 
-    <main id="workspace" :class="{ 'idle-workspace': tab === 'chat' && !messages.length }" tabindex="-1">
-      <header v-if="tab !== 'chat' || messages.length" class="workspace-header"><span>{{ tab === 'chat' ? '대화 / 기술 지원' : tab === 'knowledge' ? '지식 / 팀 기록' : '설정 / 연결 관리' }}</span><span class="subtle">UNREAL ENGINE</span></header>
+    <main id="workspace" :class="{ 'idle-workspace': tab === 'chat' && !messages.length, 'chat-mode': tab === 'chat' }" tabindex="-1">
+      <header v-if="tab !== 'chat'" class="workspace-header"><span>{{ tab === 'knowledge' ? '지식' : '설정 / 연결 관리' }}</span><span class="subtle">UNREAL ENGINE</span></header>
+      <header v-else-if="messages.length" class="chat-header"><span>기술 지원 대화</span><button class="quiet" :disabled="busy" @click="messages = []; chatError = ''">새 대화</button></header>
       <section v-if="tab === 'chat'" class="chat-workspace" :class="{ 'is-empty': !messages.length }" aria-label="대화">
-        <div v-if="messages.length" class="page-title"><div><p class="eyebrow">ASK YOUR KNOWLEDGE</p><h1>기록에서 답을 찾으세요.</h1><p>언리얼 기술과 팀이 해결한 오류를 근거와 함께 확인합니다.</p></div><button class="quiet" :disabled="busy" @click="messages = []; chatError = ''">새 대화</button></div>
-        <p v-if="messages.length && !configured" class="setup-notice">{{ accessReady ? '대화를 시작하려면 설정에서 LLM API 키를 입력하세요.' : '설정에서 내부 연결을 확인해 주세요.' }} <button class="quiet" :disabled="mutating" @click="tab = 'settings'">연결 설정 열기</button></p>
+        <h1 v-if="!messages.length" class="greeting">무엇을 도와드릴까요?</h1>
+        <p v-if="!configured" class="setup-notice">{{ accessReady ? '대화를 시작하려면 설정에서 LLM API 키를 입력하세요.' : '설정에서 내부 연결을 확인해 주세요.' }} <button class="quiet" :disabled="mutating" @click="tab = 'settings'">연결 설정 열기</button></p>
         <div v-if="messages.length" class="messages" aria-live="polite" aria-relevant="additions" :aria-busy="busy">
           <article v-for="(message, index) in messages" :key="index" :class="['message', message.role, { failed: message.failed }]">
-            <p class="message-role">{{ message.role === 'user' ? '나' : 'Tsukuyomi for Unreal' }} · {{ message.engineVersion ? `UE ${message.engineVersion}` : '전체 버전' }}<span v-if="message.failed"> · 처리 미완료</span></p>
+            <p class="message-role"><span :class="{ 'sr-only': message.role === 'user' }">{{ message.role === 'user' ? '나' : 'Tsukuyomi' }} · </span>{{ message.engineVersion ? `UE ${message.engineVersion}` : '전체 버전' }}<span v-if="message.failed"> · 처리 미완료</span></p>
             <div class="message-content">
               <template v-if="message.answerBlocks?.length">
                 <template v-for="(block, blockIndex) in message.answerBlocks" :key="blockIndex">
@@ -340,19 +384,38 @@ function onQuestionEnter(event) {
             </ul>
           </article>
         </div>
-        <div v-if="busy" class="pending" role="status">기록을 검색하고 답변을 작성하고 있습니다. 첫 검색은 모델 준비로 오래 걸릴 수 있습니다.<button class="quiet" @click="chatController?.abort()">대기 취소</button></div>
+        <div v-if="busy" class="pending" role="status"><span class="pulse" aria-hidden="true"></span>기록을 검색하고 답변을 작성하고 있습니다. 첫 검색은 모델 준비로 오래 걸릴 수 있습니다.</div>
         <p v-if="chatError" class="error" role="alert">{{ chatError }}</p>
         <div ref="conversation"></div>
-        <form class="composer" @submit.prevent="ask">
-          <label class="sr-only" for="question">언리얼 기술 질문</label>
-          <textarea id="question" v-model="question" rows="3" maxlength="8000" placeholder="엔진 버전, 오류 메시지 또는 궁금한 기술을 입력하세요." :disabled="busy" required @keydown.enter.exact="onQuestionEnter"></textarea>
-          <div class="composer-bottom"><span v-if="messages.length">Enter 전송 · Shift + Enter 줄바꿈</span><button class="primary" type="submit" aria-label="질문 보내기" :disabled="busy || checking || !question.trim() || !configured"><template v-if="messages.length">{{ busy ? '답변 작성 중' : '질문 보내기' }} </template><span aria-hidden="true">↑</span></button></div>
-        </form>
-        <p v-if="messages.length" class="footnote">검색 근거와 엔진 버전을 확인한 뒤 프로젝트에 적용하세요.</p>
+        <div class="composer-dock">
+          <form class="composer" @submit.prevent="ask">
+            <label class="sr-only" for="question">언리얼 기술 질문</label>
+            <textarea id="question" v-model="question" rows="2" maxlength="8000" placeholder="엔진 버전, 오류 메시지 또는 궁금한 기술을 입력하세요." :disabled="busy" required @keydown.enter.exact="onQuestionEnter"></textarea>
+            <div class="composer-bottom">
+              <div ref="versionPicker" class="version-picker" @keydown="onVersionKeydown">
+                <button type="button" class="version-trigger" aria-haspopup="menu" :aria-expanded="versionMenuOpen" aria-controls="version-menu"
+                  :disabled="busy || !accessReady" @click="versionMenuOpen ? closeVersionMenu() : openVersionMenu()">
+                  엔진 버전: <strong>{{ engineVersion || '전체' }}</strong><span class="chevron" aria-hidden="true">⌄</span>
+                </button>
+                <div v-if="versionMenuOpen" id="version-menu" class="version-menu" role="menu" aria-label="엔진 버전 선택">
+                  <p class="version-menu-title" aria-hidden="true">엔진 버전</p>
+                  <button v-for="version in versionOptions" :key="version" type="button" role="menuitemradio" tabindex="-1"
+                    :aria-checked="engineVersion === version" @click="chooseVersion(version)">
+                    <span><strong>{{ version ? `UE ${version}` : '전체 버전' }}</strong><small v-if="!version">모든 버전의 기록을 검색</small></span>
+                    <span class="check" aria-hidden="true">✓</span>
+                  </button>
+                </div>
+              </div>
+              <button v-if="busy" class="send stop" type="button" aria-label="응답 대기 취소" @click="chatController?.abort()"><span aria-hidden="true">■</span></button>
+              <button v-else class="send" type="submit" aria-label="질문 보내기" :disabled="checking || !question.trim() || !configured"><span aria-hidden="true">↑</span></button>
+            </div>
+          </form>
+          <p class="footnote">검색 근거와 엔진 버전을 확인한 뒤 프로젝트에 적용하세요.</p>
+        </div>
       </section>
 
       <section v-show="tab === 'knowledge'" class="knowledge-workspace" aria-labelledby="knowledge-title">
-        <div class="page-title"><div><p class="eyebrow">SHARED KNOWLEDGE</p><h1 id="knowledge-title">다음에 다시 찾을 수 있도록.</h1><p>새로 익힌 기술과 해결한 오류를 팀의 기록으로 남깁니다.</p></div></div>
+        <div class="page-title"><div><p class="eyebrow">SHARED KNOWLEDGE</p><h1 id="knowledge-title">프로젝트 지식 저장소</h1></div></div>
         <div class="knowledge-layout">
           <form class="knowledge-form" aria-labelledby="entry-form-title" @submit.prevent="saveEntry">
             <h2 id="entry-form-title">{{ editing ? '지식 수정' : '지식 등록' }}</h2>
@@ -412,35 +475,53 @@ function onQuestionEnter(event) {
       <section v-if="tab === 'settings'" class="settings-workspace" aria-labelledby="settings-title">
         <div class="page-title"><div><p class="eyebrow">SETTINGS</p><h1 id="settings-title">연결 설정</h1><p>내부 접근과 답변에 사용할 LLM을 설정합니다.</p></div></div>
         <div class="settings-layout">
-          <section class="settings-panel access-settings" aria-labelledby="access-title">
-            <h2 id="access-title">내부 연결</h2>
-            <p class="connection-state"><span class="status-dot" :class="{ ready: accessReady }"></span>{{ connecting ? '연결 중…' : accessReady ? '연결됨' : '연결 필요' }}</p>
-            <form @submit.prevent="connect">
-              <label for="access-token">내부 접근 토큰</label>
-              <input id="access-token" v-model="accessToken" type="password" autocomplete="off" spellcheck="false" maxlength="4096" placeholder="서버에 설정된 경우 입력" :disabled="connecting || busy || mutating || loading" />
-              <p class="hint">서버에 토큰을 설정한 경우에만 입력하세요. LLM API 키와 별도입니다.</p>
-              <p class="hint">다시 연결하거나 연결을 해제하면 대화와 작성 중인 내용을 비웁니다.</p>
-              <div class="entry-actions">
-                <button type="submit" :disabled="connecting || busy || mutating || loading">{{ connecting ? '연결 중…' : '연결' }}</button>
-                <button type="button" :disabled="!accessReady || connecting || busy || mutating || loading" @click="disconnect">연결 해제</button>
+          <section class="settings-panel" aria-labelledby="access-title">
+            <div class="panel-head">
+              <div class="panel-title">
+                <h2 id="access-title">내부 연결</h2>
+                <span class="help">
+                  <button type="button" class="help-button" aria-label="내부 연결 도움말" aria-describedby="access-help">?</button>
+                  <span id="access-help" role="tooltip" class="help-tip">LLM API 키와 별도이며, 서버에 토큰을 설정한 경우에만 입력합니다. 다시 연결하거나 해제하면 대화와 작성 중인 내용을 비웁니다.</span>
+                </span>
               </div>
-            </form>
-            <p v-if="accessError" class="error" role="alert">{{ accessError }}</p>
-          </section>
-          <section class="settings-panel connection" aria-labelledby="connection-title">
-            <h2 id="connection-title">LLM 연결</h2>
-            <p class="connection-state"><span class="status-dot" :class="{ ready: configured }"></span>{{ apiKey.trim() ? '입력한 키 사용' : serverKey ? '서버에 설정된 키 사용' : 'API 키 입력 필요' }}</p>
-            <label for="api-key">API 키</label>
-            <input id="api-key" v-model="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="API 키 입력" maxlength="4096" :disabled="!accessReady || checking" />
-            <p class="hint">입력한 키와 토큰은 새로고침하거나 연결을 해제하면 지워집니다. 메뉴를 이동해도 유지됩니다.</p>
-            <label for="model">모델</label>
-            <input id="model" v-model="model" placeholder="모델 이름" maxlength="100" autocomplete="off" :disabled="!accessReady || checking" />
-            <div class="llm-check">
-              <button type="button" :disabled="!configured || busy || mutating || loading" @click="checkLLM">{{ checking ? '연결 확인 중…' : 'LLM 연결 확인' }}</button>
-              <p class="hint">누르면 짧은 LLM 요청이 전송되며 사용량이 발생합니다.</p>
-              <p v-if="connectionNotice" class="success" role="status">{{ connectionNotice }}</p>
-              <p v-if="connectionError" class="error" role="alert">{{ connectionError }}</p>
+              <p class="connection-state"><span class="status-dot" :class="{ ready: accessReady }"></span>{{ connecting ? '연결 중…' : accessReady ? '연결됨' : '연결 필요' }}</p>
             </div>
+            <form class="panel-row" aria-describedby="access-help" @submit.prevent="connect">
+              <label for="access-token">접근 토큰</label>
+              <input id="access-token" v-model="accessToken" type="password" autocomplete="off" spellcheck="false" maxlength="4096" placeholder="서버에 설정된 경우 입력" :disabled="connecting || busy || mutating || loading" />
+              <button type="submit" :disabled="connecting || busy || mutating || loading">{{ connecting ? '연결 중…' : '연결' }}</button>
+              <button type="button" :disabled="!accessReady || connecting || busy || mutating || loading" @click="disconnect">연결 해제</button>
+            </form>
+            <p v-if="accessError" class="panel-note error" role="alert">{{ accessError }}</p>
+          </section>
+          <section class="settings-panel" aria-labelledby="connection-title">
+            <div class="panel-head">
+              <div class="panel-title">
+                <h2 id="connection-title">LLM 연결</h2>
+                <span class="help">
+                  <button type="button" class="help-button" aria-label="LLM 연결 도움말" aria-describedby="llm-help">?</button>
+                  <span id="llm-help" role="tooltip" class="help-tip">키는 새로고침하거나 연결을 해제하면 지워집니다. 연결 확인은 짧은 LLM 요청을 보내 사용량이 발생합니다.</span>
+                </span>
+              </div>
+              <p class="connection-state"><span class="status-dot" :class="{ ready: configured }"></span>{{ apiKey.trim() ? '입력한 키 사용' : serverKey ? '서버에 설정된 키 사용' : 'API 키 입력 필요' }}</p>
+            </div>
+            <div class="panel-row">
+              <label for="api-key">API 키</label>
+              <span class="secret-field">
+                <input id="api-key" v-model="apiKey" :type="showApiKey ? 'text' : 'password'" autocomplete="off" spellcheck="false" placeholder="API 키 입력" maxlength="4096" :disabled="!accessReady || checking" aria-describedby="llm-help" />
+                <button type="button" class="reveal-button" :aria-label="showApiKey ? 'API 키 숨기기' : 'API 키 보기'" :aria-pressed="showApiKey" :disabled="!accessReady" @click="showApiKey = !showApiKey">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
+                    <path v-if="showApiKey" d="M3 3l18 18" />
+                  </svg>
+                </button>
+              </span>
+              <label for="model">모델</label>
+              <input id="model" v-model="model" class="model-input" placeholder="모델 이름" maxlength="100" autocomplete="off" :disabled="!accessReady || checking" />
+              <button type="button" :disabled="!configured || busy || mutating || loading" aria-describedby="llm-help" @click="checkLLM">{{ checking ? '확인 중…' : '연결 확인' }}</button>
+            </div>
+            <p v-if="connectionError" class="panel-note error" role="alert">{{ connectionError }}</p>
+            <p v-else-if="connectionNotice" class="panel-note success" role="status">{{ connectionNotice }}</p>
           </section>
         </div>
       </section>

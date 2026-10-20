@@ -255,14 +255,15 @@ def _search_candidates(store, query: str, engine_version: str | None):
     options = {}
     if engine_version:
         # FAISS는 후보 추출 후 필터링하므로 전체에서 조회해야 버전별 후보를 놓치지 않는다.
-        options = {"filter": {"engine_version": engine_version}, "fetch_k": store.index.ntotal}
+        options = {"filter": lambda metadata: documents.version_matches(metadata.get("engine_version"), engine_version),
+                   "fetch_k": store.index.ntotal}
     candidates = store.similarity_search_with_score_by_vector(
         embedding, k=min(CANDIDATES, store.index.ntotal), **options)
     seen = {(doc.metadata["doc_id"], doc.metadata["chunk_id"]) for doc, _ in candidates}
     lexical = []
     for position, document_id in store.index_to_docstore_id.items():
         doc = store.docstore.search(document_id)
-        if engine_version and doc.metadata.get("engine_version") != engine_version:
+        if engine_version and not documents.version_matches(doc.metadata.get("engine_version"), engine_version):
             continue
         keyword = _keyword_score(query, doc.page_content)
         if keyword >= MIN_KEYWORD_SCORE:

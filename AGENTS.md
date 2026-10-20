@@ -24,6 +24,7 @@ Run from the repository root with the project's Python environment active:
 - `python -m agents.docs`: rebuild the index after document changes; replaces generated index files.
 - `python app.py`: run the existing interactive CLI.
 - `python app.py "question"`: execute one question using current behavior.
+- `python -m pytest tests`: run regression tests (install `requirements-dev.txt` first).
 
 Document Vue commands when its package configuration exists.
 

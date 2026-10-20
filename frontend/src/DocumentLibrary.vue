@@ -1,5 +1,6 @@
 <script setup>
-import { nextTick, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
+import { ENGINE_VERSIONS } from './engineVersions.js'
 
 const props = defineProps({ entries: Array, request: Function, disabled: Boolean, error: String })
 const emit = defineEmits(['busy', 'saved'])
@@ -7,11 +8,18 @@ const editing = ref(null)
 const saving = ref(false)
 const error = ref('')
 const notice = ref('')
-const form = reactive({ title: '', engine_version: '', source_url: '' })
+const UNSPECIFIED = '미지정'
+const form = reactive({ title: '', versions: [], source_url: '' })
+// 목록에 없는 기존 버전(예: 5.5.4)도 선택지로 남겨 편집 중에 사라지지 않게 한다.
+const versionOptions = computed(() => [...ENGINE_VERSIONS, ...form.versions.filter(version => !ENGINE_VERSIONS.includes(version))])
+
+function splitVersions(value) {
+  return (value || '').split(',').map(version => version.trim()).filter(version => version && version !== UNSPECIFIED)
+}
 
 async function edit(item) {
   editing.value = { filename: item.filename, revision: item.revision }
-  Object.assign(form, { title: item.title, engine_version: item.engine_version, source_url: item.source_url || '' })
+  Object.assign(form, { title: item.title, versions: splitVersions(item.engine_version), source_url: item.source_url || '' })
   error.value = ''
   notice.value = ''
   await nextTick()
@@ -20,7 +28,7 @@ async function edit(item) {
 
 function cancel() {
   editing.value = null
-  Object.assign(form, { title: '', engine_version: '', source_url: '' })
+  Object.assign(form, { title: '', versions: [], source_url: '' })
   error.value = ''
 }
 
@@ -33,7 +41,12 @@ async function save() {
   try {
     const result = await props.request(`/documents/${encodeURIComponent(editing.value.filename)}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, source_url: form.source_url.trim() || null, expected_revision: editing.value.revision }),
+      body: JSON.stringify({
+        title: form.title,
+        engine_version: versionOptions.value.filter(version => form.versions.includes(version)).join(', ') || UNSPECIFIED,
+        source_url: form.source_url.trim() || null,
+        expected_revision: editing.value.revision,
+      }),
     })
     emit('saved', result.entry)
     cancel()
@@ -63,8 +76,15 @@ async function save() {
       <h3>{{ editing.filename }}</h3>
       <fieldset :disabled="disabled">
         <label for="document-title">문서 제목</label><input id="document-title" v-model="form.title" required maxlength="200" />
-        <label for="document-version">문서 엔진 버전</label><input id="document-version" v-model="form.engine_version" required maxlength="50" />
-        <p class="hint">확인된 버전만 입력하세요. 알 수 없으면 ‘미지정’을 사용합니다.</p>
+        <fieldset class="version-group" aria-describedby="document-version-help">
+          <legend>문서 엔진 버전 <span class="optional">여러 개 선택 가능</span></legend>
+          <div class="version-options">
+            <label v-for="version in versionOptions" :key="version" class="version-option">
+              <input v-model="form.versions" type="checkbox" :value="version" /><span>UE {{ version }}</span>
+            </label>
+          </div>
+          <p id="document-version-help" class="hint">확인된 버전만 선택하세요. 선택하지 않으면 ‘미지정’으로 저장합니다.</p>
+        </fieldset>
         <label for="document-source">문서 출처 URL <span class="optional">선택</span></label><input id="document-source" v-model="form.source_url" type="url" maxlength="2000" placeholder="https://…" />
         <div class="entry-actions">
           <button class="primary" type="submit">{{ saving ? '저장 중…' : '문서 정보 저장' }}</button>
@@ -86,5 +106,12 @@ async function save() {
 .document-entry button { flex-shrink: 0; font-size: 12px; }
 .document-form { max-width: 600px; }
 .document-form h3 { overflow-wrap: anywhere; }
+.version-group { margin: 16px 0 0; }
+.version-group legend { padding: 0; margin-bottom: 8px; font-size: 13px; font-weight: 500; }
+.version-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.version-option { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 6px 12px; border: 1px solid var(--color-rule); border-radius: 999px; font-size: 12px; font-weight: 400; cursor: pointer; transition: background 150ms ease-out, border-color 150ms ease-out; }
+.version-option:hover { border-color: var(--color-muted); }
+.version-option:has(input:checked) { border-color: var(--color-accent); background: var(--color-accent-soft); color: var(--color-accent); }
+.version-option input { width: auto; margin: 0; accent-color: var(--color-accent); }
 @media (max-width: 480px) { .document-entry { flex-direction: column; gap: 4px; } }
 </style>

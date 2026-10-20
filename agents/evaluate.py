@@ -14,7 +14,7 @@ from typing import Annotated, Literal
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from . import docs
+from . import docs, documents
 
 DocumentId = Annotated[str, Field(min_length=1, max_length=200)]
 
@@ -54,7 +54,8 @@ def validate_corpus(dataset: EvaluationSet, chunks) -> None:
         for doc_id in set(case.expected_doc_ids):
             if doc_id not in versions:
                 raise EvaluationError(f"{case.id}: 정답 문서 ID가 현재 자료에 없습니다: {doc_id}")
-            if case.engine_version and case.engine_version not in versions[doc_id]:
+            if case.engine_version and not any(documents.version_matches(stored, case.engine_version)
+                                               for stored in versions[doc_id]):
                 raise EvaluationError(f"{case.id}: 정답 문서가 선택한 엔진 버전과 일치하지 않습니다: {doc_id}")
 
 

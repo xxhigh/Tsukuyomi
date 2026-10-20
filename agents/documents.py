@@ -14,7 +14,8 @@ class DocumentMetadata(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     title: str = Field(min_length=1, max_length=200)
-    engine_version: str = Field(min_length=1, max_length=50)
+    # 여러 버전은 "5.4, 5.6"처럼 쉼표로 구분해 저장한다.
+    engine_version: str = Field(min_length=1, max_length=200)
     source_url: HttpUrl | None = None
 
 
@@ -24,6 +25,11 @@ class DocumentUpdate(DocumentMetadata):
 
 class StoredMetadata(DocumentMetadata):
     revision: int = Field(ge=1, strict=True)
+
+
+def version_matches(stored: str | None, wanted: str) -> bool:
+    """쉼표로 구분된 버전 목록 중 하나라도 정확히 일치하면 True."""
+    return wanted.strip() in {version.strip() for version in (stored or "").split(",")}
 
 
 def _valid_filename(filename: str) -> bool:

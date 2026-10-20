@@ -1,7 +1,7 @@
 # Tsukuyomi for Unreal
 
 언리얼 엔진 기술과 개발 오류·해결 사례를 저장하고 검색하는 내부용 RAG 챗봇입니다.
-기존 투자 평가 프로젝트의 LangGraph Supervisor와 FAISS 검색을 전환했습니다.
+
 
 ## 구성
 

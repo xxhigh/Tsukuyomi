@@ -10,7 +10,7 @@ from markdown_it import MarkdownIt
 
 from prompts import SUPERVISOR_PROMPT, WRITER_PROMPT
 
-from . import docs, knowledge
+from . import docs, documents, knowledge
 from .state import ChatState, Route
 
 MAX_RESEARCH_ROUNDS = 2
@@ -81,9 +81,9 @@ def build_graph(llm, retrieve=None):
             if local_retrieval:
                 _check_corpus(fingerprint)
         evidence = {(item["doc_id"], item["chunk_id"]): item for item in state.get("evidence", [])
-                    if not version or item.get("engine_version") == version}
+                    if not version or documents.version_matches(item.get("engine_version"), version)}
         for item in found:
-            if version and item.get("engine_version") != version:
+            if version and not documents.version_matches(item.get("engine_version"), version):
                 continue
             evidence[(item["doc_id"], item["chunk_id"])] = item
         return {"evidence": list(evidence.values())[:10], "rounds": state.get("rounds", 0) + 1,
