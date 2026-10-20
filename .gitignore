@@ -1,0 +1,16 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+frontend/dist/
+data/unreal/docs/*.json
+data/unreal/.documents.lock
+data/unreal/vectorstores/
+outputs/
+.DS_Store
+
+
+.hallmark/
+tests/
