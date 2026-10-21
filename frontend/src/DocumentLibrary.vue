@@ -98,10 +98,10 @@ async function save() {
 </template>
 
 <style scoped>
-.document-library { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--color-rule); }
+.document-library { margin-top: 40px; padding: 30px; border: 1px solid var(--color-rule); border-radius: 20px; background: var(--color-surface); }
 .document-library h2 span { font-size: 12px; color: var(--color-muted); }
 .document-list { list-style: none; margin: 16px 0; padding: 0; }
-.document-entry { display: flex; align-items: start; gap: 16px; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--color-rule); }
+.document-entry { display: flex; align-items: start; gap: 16px; justify-content: space-between; padding: 20px 0; border-bottom: 1px solid var(--color-rule); }
 .document-entry div { min-width: 0; overflow-wrap: anywhere; }
 .document-entry button { flex-shrink: 0; font-size: 12px; }
 .document-form { max-width: 600px; }
@@ -109,9 +109,9 @@ async function save() {
 .version-group { margin: 16px 0 0; }
 .version-group legend { padding: 0; margin-bottom: 8px; font-size: 13px; font-weight: 500; }
 .version-options { display: flex; flex-wrap: wrap; gap: 8px; }
-.version-option { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 6px 12px; border: 1px solid var(--color-rule); border-radius: 999px; font-size: 12px; font-weight: 400; cursor: pointer; transition: background 150ms ease-out, border-color 150ms ease-out; }
+.version-option { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin: 0; padding: 6px 12px; border: 1px solid var(--color-rule); border-radius: 999px; font-size: 12px; font-weight: 400; cursor: pointer; transition: background 150ms ease-out, border-color 150ms ease-out; }
 .version-option:hover { border-color: var(--color-muted); }
 .version-option:has(input:checked) { border-color: var(--color-accent); background: var(--color-accent-soft); color: var(--color-accent); }
-.version-option input { width: auto; margin: 0; accent-color: var(--color-accent); }
-@media (max-width: 480px) { .document-entry { flex-direction: column; gap: 4px; } }
+.version-option input { width: auto; min-height: 0; padding: 0; margin: 0; accent-color: var(--color-accent); }
+@media (max-width: 480px) { .document-library { padding: 20px; } .document-entry { flex-direction: column; gap: 8px; } }
 </style>

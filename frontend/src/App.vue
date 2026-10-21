@@ -338,22 +338,22 @@ function onQuestionEnter(event) {
   <a class="skip-link" href="#workspace">작업 영역으로 이동</a>
   <div class="shell">
     <aside class="sidebar" aria-label="도구 메뉴">
-      <div class="identity"><strong>Tsukuyomi for Unreal</strong></div>
+      <div class="identity"><svg class="brand-mark" viewBox="0 0 40 40" fill="none" aria-hidden="true" focusable="false"><path d="M20.00 4.00 C24.19 4.21 28.17 6.14 30.86 9.14 C33.56 12.13 34.94 16.14 34.73 20.00 C34.52 23.86 32.72 27.51 29.96 29.96 C27.21 32.42 23.52 33.67 20.00 33.45 C16.48 33.24 13.16 31.59 10.94 29.06 C8.71 26.54 7.61 23.19 7.82 20.00 C8.03 16.81 9.55 13.82 11.84 11.84 C14.12 9.85 17.14 8.88 20.00 9.09 C22.86 9.30 25.51 10.68 27.26 12.74 C29.02 14.79 29.85 17.48 29.64 20.00 C29.42 22.52 28.18 24.85 26.36 26.36 C24.55 27.88 22.19 28.58 20.00 28.36 C17.81 28.15 15.82 27.04 14.54 25.46 C13.26 23.88 12.70 21.86 12.91 20.00 C13.12 18.14 14.09 16.48 15.44 15.44 C16.78 14.39 18.48 13.97 20.00 14.18 C21.52 14.39 22.85 15.23 23.66 16.34 C24.47 17.45 24.76 18.81 24.55 20.00 C24.33 21.19 23.64 22.19 22.76 22.76 C21.89 23.34 20.86 23.48 20.00 23.27 C19.14 23.06 18.47 22.50 18.14 21.86 C17.80 21.23 17.79 20.52 18.00 20.00" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg><div><strong>Tsukuyomi</strong><span class="brand-caption">for Unreal Engine</span></div></div>
       <p class="eyebrow">WORKSPACE</p>
       <nav aria-label="작업 선택">
-        <button :class="{ selected: tab === 'chat' }" :aria-pressed="tab === 'chat'" :disabled="mutating" @click="tab = 'chat'">대화<span aria-hidden="true">↗</span></button>
-        <button :class="{ selected: tab === 'knowledge' }" :aria-pressed="tab === 'knowledge'" :disabled="mutating" @click="tab = 'knowledge'">지식 저장소<span>{{ entries.length }}</span></button>
-        <button :class="{ selected: tab === 'settings' }" :aria-pressed="tab === 'settings'" :disabled="mutating" @click="tab = 'settings'">설정<span aria-hidden="true">↗</span></button>
+        <button :class="{ selected: tab === 'chat' }" :aria-pressed="tab === 'chat'" :disabled="mutating" @click="tab = 'chat'"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 3V6a2 2 0 0 1 2-2Z"/><path d="M7 9h10M7 13h6"/></svg>대화<span aria-hidden="true">↗</span></button>
+        <button :class="{ selected: tab === 'knowledge' }" :aria-pressed="tab === 'knowledge'" :disabled="mutating" @click="tab = 'knowledge'"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 3v18M11 8h5M11 12h5"/></svg>지식 저장소<span>{{ entries.length }}</span></button>
+        <button :class="{ selected: tab === 'settings' }" :aria-pressed="tab === 'settings'" :disabled="mutating" @click="tab = 'settings'"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg>설정<span aria-hidden="true">↗</span></button>
       </nav>
-      <footer class="sidebar-footer">INTERNAL TOOL <span>Unreal Engine RAG</span></footer>
+      <footer class="sidebar-footer">COPYRIGHT 2026. xxhigh</footer>
     </aside>
 
     <main id="workspace" :class="{ 'idle-workspace': tab === 'chat' && !messages.length, 'chat-mode': tab === 'chat' }" tabindex="-1">
       <header v-if="tab !== 'chat'" class="workspace-header"><span>{{ tab === 'knowledge' ? '지식' : '설정 / 연결 관리' }}</span><span class="subtle">UNREAL ENGINE</span></header>
-      <header v-else-if="messages.length" class="chat-header"><span>기술 지원 대화</span><button class="quiet" :disabled="busy" @click="messages = []; chatError = ''">새 대화</button></header>
+      <header v-else-if="messages.length" class="chat-header"><span>워크스페이스 <span aria-hidden="true">/</span> <strong>기술 지원 대화</strong></span><button class="quiet" :disabled="busy" @click="messages = []; chatError = ''">새 대화 <span aria-hidden="true">＋</span></button></header>
       <section v-if="tab === 'chat'" class="chat-workspace" :class="{ 'is-empty': !messages.length }" aria-label="대화">
-        <h1 v-if="!messages.length" class="greeting">무엇을 도와드릴까요?</h1>
-        <p v-if="!configured" class="setup-notice">{{ accessReady ? '대화를 시작하려면 설정에서 LLM API 키를 입력하세요.' : '설정에서 내부 연결을 확인해 주세요.' }} <button class="quiet" :disabled="mutating" @click="tab = 'settings'">연결 설정 열기</button></p>
+        <h1 v-if="!messages.length" class="start-wordmark"><span class="start-wordmark-name">Tsukuyomi</span><span class="start-wordmark-subtitle">for Unreal</span></h1>
+        <p v-if="messages.length && !configured" class="setup-notice">{{ accessReady ? '대화를 시작하려면 설정에서 LLM API 키를 입력하세요.' : '설정에서 내부 연결을 확인해 주세요.' }} <button class="quiet" :disabled="mutating" @click="tab = 'settings'">연결 설정 열기</button></p>
         <div v-if="messages.length" class="messages" aria-live="polite" aria-relevant="additions" :aria-busy="busy">
           <article v-for="(message, index) in messages" :key="index" :class="['message', message.role, { failed: message.failed }]">
             <p class="message-role"><span :class="{ 'sr-only': message.role === 'user' }">{{ message.role === 'user' ? '나' : 'Tsukuyomi' }} · </span>{{ message.engineVersion ? `UE ${message.engineVersion}` : '전체 버전' }}<span v-if="message.failed"> · 처리 미완료</span></p>
@@ -410,12 +410,12 @@ function onQuestionEnter(event) {
               <button v-else class="send" type="submit" aria-label="질문 보내기" :disabled="checking || !question.trim() || !configured"><span aria-hidden="true">↑</span></button>
             </div>
           </form>
-          <p class="footnote">검색 근거와 엔진 버전을 확인한 뒤 프로젝트에 적용하세요.</p>
+          <p v-if="messages.length" class="footnote">검색 근거와 엔진 버전을 확인한 뒤 프로젝트에 적용하세요.</p>
         </div>
       </section>
 
       <section v-show="tab === 'knowledge'" class="knowledge-workspace" aria-labelledby="knowledge-title">
-        <div class="page-title"><div><p class="eyebrow">SHARED KNOWLEDGE</p><h1 id="knowledge-title">프로젝트 지식 저장소</h1></div></div>
+        <div class="page-title"><div><p class="eyebrow">SHARED KNOWLEDGE</p><h1 id="knowledge-title">프로젝트 지식 저장소</h1><p>한 번의 해결이 팀의 다음 답이 되도록, 개발 경험을 기록하세요.</p></div><span class="page-index" aria-hidden="true">Library ↗</span></div>
         <div class="knowledge-layout">
           <form class="knowledge-form" aria-labelledby="entry-form-title" @submit.prevent="saveEntry">
             <h2 id="entry-form-title">{{ editing ? '지식 수정' : '지식 등록' }}</h2>
@@ -487,9 +487,9 @@ function onQuestionEnter(event) {
               <p class="connection-state"><span class="status-dot" :class="{ ready: accessReady }"></span>{{ connecting ? '연결 중…' : accessReady ? '연결됨' : '연결 필요' }}</p>
             </div>
             <form class="panel-row" aria-describedby="access-help" @submit.prevent="connect">
-              <label for="access-token">접근 토큰</label>
+              <div class="connection-field"><label for="access-token">접근 토큰</label>
               <input id="access-token" v-model="accessToken" type="password" autocomplete="off" spellcheck="false" maxlength="4096" placeholder="서버에 설정된 경우 입력" :disabled="connecting || busy || mutating || loading" />
-              <button type="submit" :disabled="connecting || busy || mutating || loading">{{ connecting ? '연결 중…' : '연결' }}</button>
+              </div><button class="primary" type="submit" :disabled="connecting || busy || mutating || loading">{{ connecting ? '연결 중…' : '연결' }}</button>
               <button type="button" :disabled="!accessReady || connecting || busy || mutating || loading" @click="disconnect">연결 해제</button>
             </form>
             <p v-if="accessError" class="panel-note error" role="alert">{{ accessError }}</p>
@@ -506,7 +506,7 @@ function onQuestionEnter(event) {
               <p class="connection-state"><span class="status-dot" :class="{ ready: configured }"></span>{{ apiKey.trim() ? '입력한 키 사용' : serverKey ? '서버에 설정된 키 사용' : 'API 키 입력 필요' }}</p>
             </div>
             <div class="panel-row">
-              <label for="api-key">API 키</label>
+              <div class="connection-field"><label for="api-key">API 키</label>
               <span class="secret-field">
                 <input id="api-key" v-model="apiKey" :type="showApiKey ? 'text' : 'password'" autocomplete="off" spellcheck="false" placeholder="API 키 입력" maxlength="4096" :disabled="!accessReady || checking" aria-describedby="llm-help" />
                 <button type="button" class="reveal-button" :aria-label="showApiKey ? 'API 키 숨기기' : 'API 키 보기'" :aria-pressed="showApiKey" :disabled="!accessReady" @click="showApiKey = !showApiKey">
@@ -516,9 +516,9 @@ function onQuestionEnter(event) {
                   </svg>
                 </button>
               </span>
-              <label for="model">모델</label>
+              </div><div class="connection-field"><label for="model">모델</label>
               <input id="model" v-model="model" class="model-input" placeholder="모델 이름" maxlength="100" autocomplete="off" :disabled="!accessReady || checking" />
-              <button type="button" :disabled="!configured || busy || mutating || loading" aria-describedby="llm-help" @click="checkLLM">{{ checking ? '확인 중…' : '연결 확인' }}</button>
+              </div><button class="primary" type="button" :disabled="!configured || busy || mutating || loading" aria-describedby="llm-help" @click="checkLLM">{{ checking ? '확인 중…' : '연결 확인' }}</button>
             </div>
             <p v-if="connectionError" class="panel-note error" role="alert">{{ connectionError }}</p>
             <p v-else-if="connectionNotice" class="panel-note success" role="status">{{ connectionNotice }}</p>

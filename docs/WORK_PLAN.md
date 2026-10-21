@@ -1,5 +1,33 @@
 # Unreal Engine RAG 전환 계획
 
+## 사이드바 나선형 마크
+- [x] 범위: `frontend/src/App.vue`의 원형 문자 마크를 중심으로 감기는 SVG 나선으로 교체하고 `frontend/src/style.css`에서 크기를 맞춘다. 텍스트 로고와 기능은 유지한다. 추가 결정 사항은 없다.
+- [x] SVG 나선형 마크와 데스크톱/모바일 크기를 적용했다. 동일한 나선 좌표를 렌더링한 미리보기를 확인하고 `npm --prefix frontend run build`, `git diff --check`를 통과했다. 브라우저 검사는 실행하지 않았다.
+
+## 사이드바 저작권 문구 변경
+- [x] 범위: `frontend/src/App.vue`의 사이드바 하단 두 문구를 `COPYRIGHT 2026. xxhigh`로 교체한다. 스타일·기능 변경과 추가 결정 사항은 없다.
+- [x] `npm --prefix frontend run build`와 `git diff --check`를 통과했다.
+
+## 시작 화면 로고 선택 방지
+- [x] 범위: `frontend/src/style.css`의 시작 화면 로고에 텍스트 선택·드래그 방지를 적용한다. 다른 화면의 텍스트 선택은 유지한다. 추가 결정 사항은 없다.
+- [x] `npm --prefix frontend run build`와 `git diff --check`를 통과했다. 브라우저 검사는 실행하지 않았다.
+
+## 시작 화면 워드마크 추가
+- [x] 요청과 시작 화면을 확인했다. `App.vue`에 빈 대화에서만 보이는 `Tsukuyomi` 워드마크와 오른쪽 아래 작은 `for Unreal`을 추가하고, `style.css`에서 입력창 위 배치를 정의한다.
+- [x] 워드마크를 입력창 위에 추가하고 `for Unreal`을 오른쪽 아래에 정렬했다. `npm --prefix frontend run build`와 `git diff --check`를 통과했다. 브라우저 검사는 실행하지 않았다. 기능 변경이나 추가 사용자 결정은 없다.
+
+## 대화 시작 화면 단순화
+- [x] 요청과 현재 화면을 확인했다. `App.vue`에서 시작 문구·카드·헤더·안내를 숨기고 `style.css`에서 입력창을 작업 영역 정중앙에 배치한다. 기존 대화 이후 화면과 설정·지식 기능은 유지한다.
+- [x] 소개 문구·카드와 관련 스타일을 제거하고, 빈 대화에서는 헤더·연결 안내·입력 하단 문구를 표시하지 않도록 했다. 입력창 외곽 여백을 대칭으로 맞췄다. `npm --prefix frontend run build`와 `git diff --check`를 통과했다. 이번 변경의 브라우저 검사는 실행하지 않았으며 외부 LLM·운영 자료·인덱스도 사용하지 않았다.
+- TODO: 추가 사용자 결정 없음.
+
+## DESIGN.md 기반 프런트엔드 재디자인
+- [x] `DESIGN.md`, 저장소 지침, Vue 화면·스타일·API 연결을 확인했다. 디자인 문서의 dark canvas·white pill·blue signal·spotlight card를 현재 앱의 디자인 기준으로 사용한다.
+- [x] `frontend/src/App.vue`, `frontend/src/style.css`, `frontend/src/DocumentLibrary.vue`, `frontend/index.html`을 수정했다. 기존 API·상태·CRUD·인용·버전 선택을 유지하고 화면 계층·반응형 스타일을 정리했다. 기존 스타일 이후에 디자인 토큰을 적용하도록 루트 `tokens.css`를 추가하고 `frontend/src/main.js`에서 가져온다. 삭제 파일은 없다. Hallmark의 로컬 작업 이력은 기존 Git 제외 경로 `.hallmark/`에 기록한다.
+- [x] `npm --prefix frontend run build`와 `git diff --check`를 통과했다. 임시 Playwright 검사에서 모의 API 대화·출처 원문·긴 코드 가로 스크롤·지식 저장/필터·문서 편집 화면·LLM 연결 확인·키보드 버전 선택을 확인했다. 시작 화면은 320/375/414/768/1280/1440px, 설정·지식·답변 화면은 320/375/414/768/1280px에서 가로 넘침과 버튼 텍스트 잘림 없이 통과했다. 스크린샷 22개는 `/private/tmp/tsukuyomi-redesign/`에 보관하고 데스크톱·모바일 화면을 직접 확인했다.
+- [x] 주요 텍스트/표면·링크·성공/오류·스포트라이트 색 조합의 WCAG 대비 4.5:1 이상을 계산으로 확인했다. 외부 LLM·운영 문서·인덱스를 사용하지 않았으며 백엔드 회귀 테스트는 이번 화면 변경에서 실행하지 않았다.
+- TODO: 전용 GT Walsheim/Inter 폰트 파일이 없어 시스템 폰트로 대체한다. 기능 범위나 운영 미정 사항은 이번 작업에서 변경하지 않는다.
+
 ## README 재구성 작업 계획
 - [x] 사용자 요청(소개·기능·실행·구현 방식)과 저장소 지침을 검토하고 현재 코드·설정·기존 문서를 확인했다.
 - [x] `README.md`를 소개·주요 기능·실행 방법·구현 방식 중심으로 재구성하고 설정·검증·미정 사항을 추가했다. 기존 상세 안내는 `docs/OPERATIONS.md`로 보존하고 상대 링크를 갱신했다.
