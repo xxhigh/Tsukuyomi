@@ -9,9 +9,9 @@
   --color-muted: #999999;
   --color-rule: #262626;
   --color-rule-soft: #1a1a1a;
-  --color-accent: #0099ff;
+  --color-accent: oklch(54.1% 0.200 29.5);
   --color-accent-hover: var(--color-accent);
-  --color-accent-soft: #0099ff18;
+  --color-accent-soft: oklch(54.1% 0.200 29.5 / 0.094);
   --color-on-accent: #000000;
   --color-accent-ink: #000000;
   --color-primary-hover: #e5e5e5;
@@ -21,7 +21,7 @@
   --color-magenta: #d44df0;
   --color-coral: #ff5577;
   --color-shadow: #00000080;
-  --color-focus-shadow: #0099ff26;
+  --color-focus-shadow: oklch(54.1% 0.200 29.5 / 0.15);
   --color-spotlight-shade: #00000040;
   --font-display: 'GT Walsheim Medium', 'Inter Variable', 'Inter', 'Avenir Next', 'Apple SD Gothic Neo', sans-serif;
   --font-body: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;

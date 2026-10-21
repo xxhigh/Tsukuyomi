@@ -113,7 +113,7 @@ def test_version_filter_finds_matching_document_beyond_global_candidate_limit(wo
     assert selected["id"] not in {item["doc_id"] for item in docs.retrieve("nanite")}
     found = docs.retrieve("nanite", engine_version="5.5")
     assert [item["doc_id"] for item in found] == [selected["id"]]
-    assert docs.retrieve("nanite", engine_version="5.5.4") == []
+    assert [item["doc_id"] for item in docs.retrieve("nanite", engine_version="5.5.4")] == [selected["id"]]
     assert docs.retrieve("nanite", engine_version="5.6") == []
 
 

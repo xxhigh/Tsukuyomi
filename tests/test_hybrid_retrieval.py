@@ -43,7 +43,7 @@ def test_exact_error_code_outside_vector_candidates_can_rank_first(library, monk
     if version:
         for path in docs.DOCS_DIR.glob("*.md"):
             documents.update(path.name, documents.DocumentUpdate(
-                title=path.stem, engine_version=version, expected_revision=0))
+                title=path.stem, engine_version=version + ".2", expected_revision=0))
         (docs.DOCS_DIR / "000-wrong-version.md").write_text(f"EXACT_SOURCE {QUERY}", encoding="utf-8")
         documents.update("000-wrong-version.md", documents.DocumentUpdate(
             title="Wrong version", engine_version="5.6", expected_revision=0))
@@ -57,7 +57,7 @@ def test_exact_error_code_outside_vector_candidates_can_rank_first(library, monk
     assert [item["doc_id"] for item in found] == ["exact"]
     assert found[0]["score"] == pytest.approx(0.8 + docs.KEYWORD_WEIGHT + 0.05)
     if version:
-        assert found[0]["engine_version"] == version
+        assert found[0]["engine_version"] == version + ".2"
 
 
 def test_overlapping_vector_and_keyword_candidates_are_not_duplicated(library, monkeypatch):

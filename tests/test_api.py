@@ -31,6 +31,28 @@ def test_save_and_list_knowledge(client):
                                               "engine_version": "5.5", "content": "오류"}).status_code == 422
 
 
+@pytest.mark.parametrize("version", ["5.4", "5.4.1"])
+def test_chat_searches_minor_family_and_returns_original_patch_source(client, monkeypatch, version):
+    from agents import docs
+    from tests.test_retrieval import LocalEmbeddings
+
+    saved = client.post("/api/knowledge", json={"title": "nanite shader patch", "kind": "technique",
+                        "engine_version": "5.4.2", "content": "nanite shader verification in 5.4.2"})
+    assert saved.status_code == 201
+    monkeypatch.setattr(docs, "_embeddings", LocalEmbeddings)
+    monkeypatch.setattr(api, "create_llm", lambda *args: FakeLLM([
+        Route(worker="technique", query="nanite shader", reason="검색"), Route(worker="answer", reason="완료")]))
+    response = client.post("/api/chat", headers={"X-LLM-API-Key": "test-secret"}, json={
+        "question": "5.4.1에서 nanite shader를 사용하려면?", "engine_version": version,
+    })
+    assert response.status_code == 200
+    result = response.json()
+    assert result["status"] == "done"
+    assert result["engine_version"] == version
+    assert result["sources"][0]["engine_version"] == "5.4.2"
+    assert result["sources"][0]["doc_id"] == saved.json()["entry"]["id"]
+
+
 def test_validation_does_not_echo_key_or_arbitrary_body(client):
     response = client.post("/api/chat", headers={"X-LLM-API-Key": "test-secret"},
                            json={"question": " ", "api_key": "test-secret"})

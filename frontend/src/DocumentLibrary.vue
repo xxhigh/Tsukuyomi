@@ -10,8 +10,22 @@ const error = ref('')
 const notice = ref('')
 const UNSPECIFIED = '미지정'
 const form = reactive({ title: '', versions: [], source_url: '' })
+const patchVersion = ref('')
+const customVersions = ref([])
 // 목록에 없는 기존 버전(예: 5.5.4)도 선택지로 남겨 편집 중에 사라지지 않게 한다.
-const versionOptions = computed(() => [...ENGINE_VERSIONS, ...form.versions.filter(version => !ENGINE_VERSIONS.includes(version))])
+const versionOptions = computed(() => [...new Set([...ENGINE_VERSIONS, ...customVersions.value])])
+
+function addPatchVersion() {
+  const version = patchVersion.value.trim()
+  if (!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version) || version.length > 50) {
+    error.value = '패치 버전을 5.4.2 형식으로 입력하세요.'
+    return
+  }
+  if (!customVersions.value.includes(version)) customVersions.value.push(version)
+  if (!form.versions.includes(version)) form.versions.push(version)
+  patchVersion.value = ''
+  error.value = ''
+}
 
 function splitVersions(value) {
   return (value || '').split(',').map(version => version.trim()).filter(version => version && version !== UNSPECIFIED)
@@ -20,6 +34,8 @@ function splitVersions(value) {
 async function edit(item) {
   editing.value = { filename: item.filename, revision: item.revision }
   Object.assign(form, { title: item.title, versions: splitVersions(item.engine_version), source_url: item.source_url || '' })
+  customVersions.value = form.versions.filter(version => !ENGINE_VERSIONS.includes(version))
+  patchVersion.value = ''
   error.value = ''
   notice.value = ''
   await nextTick()
@@ -29,11 +45,17 @@ async function edit(item) {
 function cancel() {
   editing.value = null
   Object.assign(form, { title: '', versions: [], source_url: '' })
+  customVersions.value = []
+  patchVersion.value = ''
   error.value = ''
 }
 
 async function save() {
   if (props.disabled || saving.value || !editing.value) return
+  if (patchVersion.value.trim()) {
+    addPatchVersion()
+    if (patchVersion.value.trim()) return
+  }
   saving.value = true
   emit('busy', true)
   error.value = ''
@@ -83,7 +105,12 @@ async function save() {
               <input v-model="form.versions" type="checkbox" :value="version" /><span>UE {{ version }}</span>
             </label>
           </div>
-          <p id="document-version-help" class="hint">확인된 버전만 선택하세요. 선택하지 않으면 ‘미지정’으로 저장합니다.</p>
+          <label for="document-patch">확인한 패치 버전 추가 <span class="optional">선택</span></label>
+          <div class="patch-version-row">
+            <input id="document-patch" v-model="patchVersion" maxlength="50" placeholder="예: 5.4.2" @keydown.enter.prevent="addPatchVersion" />
+            <button type="button" @click="addPatchVersion">버전 추가</button>
+          </div>
+          <p id="document-version-help" class="hint">확인된 버전만 기록하세요. 5.4 검색에는 5.4.x도 포함되며 패치 원본은 유지합니다. 선택하지 않으면 ‘미지정’으로 저장합니다.</p>
         </fieldset>
         <label for="document-source">문서 출처 URL <span class="optional">선택</span></label><input id="document-source" v-model="form.source_url" type="url" maxlength="2000" placeholder="https://…" />
         <div class="entry-actions">
@@ -113,5 +140,8 @@ async function save() {
 .version-option:hover { border-color: var(--color-muted); }
 .version-option:has(input:checked) { border-color: var(--color-accent); background: var(--color-accent-soft); color: var(--color-accent); }
 .version-option input { width: auto; min-height: 0; padding: 0; margin: 0; accent-color: var(--color-accent); }
+.patch-version-row { display: flex; gap: 8px; align-items: center; }
+.patch-version-row input { flex: 1; }
+.patch-version-row button { flex-shrink: 0; }
 @media (max-width: 480px) { .document-library { padding: 20px; } .document-entry { flex-direction: column; gap: 8px; } }
 </style>

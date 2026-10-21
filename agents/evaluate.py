@@ -131,6 +131,7 @@ def main() -> int:
                        "dataset_sha256": hashlib.sha256(raw).hexdigest(), "corpus_sha256": fingerprint,
                        "retrieval_code_sha256": hashlib.sha256(Path(docs.__file__).read_bytes()).hexdigest(),
                        "settings": {"embedding_model": docs.EMBED_MODEL, "min_similarity": threshold,
+                                    "version_match_policy": "major_minor_numeric_else_exact",
                                     "keyword_weight": docs.KEYWORD_WEIGHT, "min_keyword_score": docs.MIN_KEYWORD_SCORE,
                                     "candidates": docs.CANDIDATES, "keyword_candidates": docs.CANDIDATES,
                                     "chunk_size": docs.CHUNK_SIZE,

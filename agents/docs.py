@@ -18,8 +18,8 @@ from . import documents, knowledge
 DOCS_DIR = knowledge.DOCS_DIR
 STORE_DIR = knowledge.DATA_DIR / "vectorstores" / "BAAI--bge-m3"
 EMBED_MODEL = "BAAI/bge-m3"
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 150
+CHUNK_SIZE = 600
+CHUNK_OVERLAP = 60
 KEYWORD_WEIGHT = 0.5
 MIN_KEYWORD_SCORE = 0.2
 CANDIDATES = 30

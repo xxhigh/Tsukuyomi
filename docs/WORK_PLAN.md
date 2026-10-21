@@ -1,5 +1,25 @@
 # Unreal Engine RAG 전환 계획
 
+## 청크 크기와 중첩 조정
+- [x] 범위: `agents/docs.py`의 청크 크기를 600자, 중첩을 60자로 변경하고 README의 설정 설명을 맞춘다. 기존 지문에 두 설정이 포함되어 다음 검색에서 인덱스가 자동 갱신되는지 관련 코드를 확인한다. 추가 결정 사항은 없다.
+- [x] `.venv/bin/python -m pytest -q tests`: 335개 통과·실제 모델 검사 1개 건너뜀. `git diff --check` 통과. 설정이 지문에 포함되고 불일치 시 재생성하는 경로를 확인했다. 운영 원본·인덱스를 직접 갱신하거나 외부 모델을 호출하지 않았다.
+
+## 마이너 버전 검색과 패치 근거 보존
+- [x] 사용자 승인 방향과 저장소 지침을 대조했다. 숫자 `major.minor[.patch]`는 같은 마이너 계열로 검색하고 원본 버전은 저장·출처·프롬프트에 그대로 보존한다. 다른 마이너·미지정 자료는 제외하며 기존 비표준 버전 문자열은 정확 일치를 유지한다. API/CLI에 패치를 지정해도 검색 범위는 마이너 계열이며 질문/요청의 패치는 답변 조건으로 사용한다.
+- [x] `agents/documents.py`의 공통 비교를 변경하고 `agents/graph.py`, Supervisor/Writer 프롬프트에 검색 계열과 적용 버전의 차이를 전달했다. `app.py` 도움말과 `agents/evaluate.py` 평가 설정도 맞췄다.
+- [x] `frontend/src/App.vue`의 안내, `frontend/src/DocumentLibrary.vue`의 선택형 패치 메타데이터 입력을 보완했다. 검색 선택기는 마이너 단위를 유지한다. API 스키마·원본 자료·운영 인덱스는 변경하지 않았다.
+- [x] `tests/test_version_policy.py`와 API·CLI·하이브리드 검색·평가 회귀 검사를 추가/수정했다. 관련 166개 통과 후 전체 `.venv/bin/python -m pytest -q tests`: 335개 통과·실제 모델 검사 1개 건너뜀. Vue 빌드·CLI/평가 도움말·공백 검사도 통과했다. 기존 langchain-community/FAISS 경고는 유지한다.
+- [x] `BROWSER_BASE_URL=http://127.0.0.1:5175 python3.11 tests/browser_versions.py` 통과: 모의 API 기반 패치 추가·형식 오류·중복 방지·해제 후 선택지 유지·입력란 패치 동시 저장, 마이너 선택기·질문의 패치 보존·출처 원본 버전 표시를 검증했다. 320/375/414/768/1280px에서 가로 넘침 없이 통과했으며 임시 `tsukuyomi-version-check` 폴더에 스크린샷 5개를 저장하고 모바일·데스크톱 화면을 확인했다.
+- [x] README·운영 안내·평가 안내를 갱신했다. TODO: 영향/수정 버전의 구조화 필드와 실제 LLM의 패치별 답변 정확도 평가는 후속 과제로 유지한다. 이번에는 근거 본문에 명시된 조건을 사용하며 호환성·수정 시점을 추정하지 않는다. 외부 LLM·모델 다운로드·운영 인덱스 재생성은 실행하지 않았다.
+
+## 로고 부분 강조색 적용
+- [x] 범위: `frontend/src/App.vue`의 시작 화면·사이드바 로고에서 `Tsuk`만 span으로 감싸고 `frontend/src/style.css`에서 기존 강조색 토큰을 적용한다. `uyomi`와 보조 문구는 유지한다. 추가 결정 사항은 없다.
+- [x] `npm --prefix frontend run build`와 `git diff --check`를 통과했다.
+
+## 강조색 토큰 변경
+- [x] 범위: `tokens.css`의 강조색을 사용자 지정 `oklch(54.1% 0.200 29.5)`로 변경하고 선택 배경·포커스 그림자의 파생 색조도 맞춘다. 추가 결정 사항은 없다.
+- [x] `npm --prefix frontend run build`와 `git diff --check`를 통과했다.
+
 ## 사이드바 나선형 마크
 - [x] 범위: `frontend/src/App.vue`의 원형 문자 마크를 중심으로 감기는 SVG 나선으로 교체하고 `frontend/src/style.css`에서 크기를 맞춘다. 텍스트 로고와 기능은 유지한다. 추가 결정 사항은 없다.
 - [x] SVG 나선형 마크와 데스크톱/모바일 크기를 적용했다. 동일한 나선 좌표를 렌더링한 미리보기를 확인하고 `npm --prefix frontend run build`, `git diff --check`를 통과했다. 브라우저 검사는 실행하지 않았다.
@@ -276,7 +296,7 @@
 - TODO: 외부 LLM 제공자 및 모델 확정. 우선 OpenAI 호환 chat completions와 tool calling을 사용한다.
 - TODO: SSO·사용자별 권한·접속 이력 및 HTTPS 배포 정책. 선택형 공유 접근 토큰을 추가했으며 기본 실행은 loopback이다.
 - TODO: 지식 승인·사용자별 편집 권한과 첨부파일 업로드 범위. 폼 등록·수정·삭제와 서버 PDF/Markdown 파일을 지원한다.
-- TODO: 엔진 버전 접두어 정규화·범위·패치 호환성 규칙. 현재는 선택적 문자열 정확 일치 필터를 제공한다.
+- TODO: 엔진 버전 접두어 정규화·범위·패치 호환성 규칙. 숫자 버전은 마이너 계열 검색을 제공하며 원본 패치는 보존한다. 영향/수정 버전의 구조화와 실제 패치 호환성 판정은 후속 과제다.
 - TODO: 실제 GAS 참고 문서의 적용 엔진 버전과 출처 URL을 확인한 뒤 문서 정보에 입력한다. 이번 작업에서는 추정값이나 테스트용 메타데이터를 저장하지 않았다.
 - TODO: 실제 팀 질문·정답 문서 목록과 목표 점수를 확정하고 검색 임계값·답변 정확도를 평가한다. 검색 평가 CLI는 구현했으며, Supervisor 및 생성 답변 평가는 별도 기준이 필요하다.
 - TODO: 기존 `langchain-community`의 유지보수 종료 경고가 발생한다. 이번에는 기존 FAISS 통합을 유지했으며 향후 독립 통합 패키지 전환을 검토한다.

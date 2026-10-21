@@ -100,6 +100,7 @@ def test_cli_evaluates_real_faiss_and_writes_reproducible_report(workspace, monk
     assert report["corpus_sha256"] == docs._fingerprint()
     assert report["settings"]["embedding_model"] == "BAAI/bge-m3"
     assert report["settings"]["keyword_candidates"] == docs.CANDIDATES
+    assert report["settings"]["version_match_policy"] == "major_minor_numeric_else_exact"
     assert "private-eval-question" not in output.read_text()
     assert path.read_bytes() == original
 

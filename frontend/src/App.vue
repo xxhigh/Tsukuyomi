@@ -338,7 +338,7 @@ function onQuestionEnter(event) {
   <a class="skip-link" href="#workspace">작업 영역으로 이동</a>
   <div class="shell">
     <aside class="sidebar" aria-label="도구 메뉴">
-      <div class="identity"><svg class="brand-mark" viewBox="0 0 40 40" fill="none" aria-hidden="true" focusable="false"><path d="M20.00 4.00 C24.19 4.21 28.17 6.14 30.86 9.14 C33.56 12.13 34.94 16.14 34.73 20.00 C34.52 23.86 32.72 27.51 29.96 29.96 C27.21 32.42 23.52 33.67 20.00 33.45 C16.48 33.24 13.16 31.59 10.94 29.06 C8.71 26.54 7.61 23.19 7.82 20.00 C8.03 16.81 9.55 13.82 11.84 11.84 C14.12 9.85 17.14 8.88 20.00 9.09 C22.86 9.30 25.51 10.68 27.26 12.74 C29.02 14.79 29.85 17.48 29.64 20.00 C29.42 22.52 28.18 24.85 26.36 26.36 C24.55 27.88 22.19 28.58 20.00 28.36 C17.81 28.15 15.82 27.04 14.54 25.46 C13.26 23.88 12.70 21.86 12.91 20.00 C13.12 18.14 14.09 16.48 15.44 15.44 C16.78 14.39 18.48 13.97 20.00 14.18 C21.52 14.39 22.85 15.23 23.66 16.34 C24.47 17.45 24.76 18.81 24.55 20.00 C24.33 21.19 23.64 22.19 22.76 22.76 C21.89 23.34 20.86 23.48 20.00 23.27 C19.14 23.06 18.47 22.50 18.14 21.86 C17.80 21.23 17.79 20.52 18.00 20.00" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg><div><strong>Tsukuyomi</strong><span class="brand-caption">for Unreal Engine</span></div></div>
+      <div class="identity"><svg class="brand-mark" viewBox="0 0 40 40" fill="none" aria-hidden="true" focusable="false"><path d="M20.00 4.00 C24.19 4.21 28.17 6.14 30.86 9.14 C33.56 12.13 34.94 16.14 34.73 20.00 C34.52 23.86 32.72 27.51 29.96 29.96 C27.21 32.42 23.52 33.67 20.00 33.45 C16.48 33.24 13.16 31.59 10.94 29.06 C8.71 26.54 7.61 23.19 7.82 20.00 C8.03 16.81 9.55 13.82 11.84 11.84 C14.12 9.85 17.14 8.88 20.00 9.09 C22.86 9.30 25.51 10.68 27.26 12.74 C29.02 14.79 29.85 17.48 29.64 20.00 C29.42 22.52 28.18 24.85 26.36 26.36 C24.55 27.88 22.19 28.58 20.00 28.36 C17.81 28.15 15.82 27.04 14.54 25.46 C13.26 23.88 12.70 21.86 12.91 20.00 C13.12 18.14 14.09 16.48 15.44 15.44 C16.78 14.39 18.48 13.97 20.00 14.18 C21.52 14.39 22.85 15.23 23.66 16.34 C24.47 17.45 24.76 18.81 24.55 20.00 C24.33 21.19 23.64 22.19 22.76 22.76 C21.89 23.34 20.86 23.48 20.00 23.27 C19.14 23.06 18.47 22.50 18.14 21.86 C17.80 21.23 17.79 20.52 18.00 20.00" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg><div><strong><span class="wordmark-accent">Tsuk</span>uyomi</strong><span class="brand-caption">for Unreal Engine</span></div></div>
       <p class="eyebrow">WORKSPACE</p>
       <nav aria-label="작업 선택">
         <button :class="{ selected: tab === 'chat' }" :aria-pressed="tab === 'chat'" :disabled="mutating" @click="tab = 'chat'"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 3V6a2 2 0 0 1 2-2Z"/><path d="M7 9h10M7 13h6"/></svg>대화<span aria-hidden="true">↗</span></button>
@@ -352,7 +352,7 @@ function onQuestionEnter(event) {
       <header v-if="tab !== 'chat'" class="workspace-header"><span>{{ tab === 'knowledge' ? '지식' : '설정 / 연결 관리' }}</span><span class="subtle">UNREAL ENGINE</span></header>
       <header v-else-if="messages.length" class="chat-header"><span>워크스페이스 <span aria-hidden="true">/</span> <strong>기술 지원 대화</strong></span><button class="quiet" :disabled="busy" @click="messages = []; chatError = ''">새 대화 <span aria-hidden="true">＋</span></button></header>
       <section v-if="tab === 'chat'" class="chat-workspace" :class="{ 'is-empty': !messages.length }" aria-label="대화">
-        <h1 v-if="!messages.length" class="start-wordmark"><span class="start-wordmark-name">Tsukuyomi</span><span class="start-wordmark-subtitle">for Unreal</span></h1>
+        <h1 v-if="!messages.length" class="start-wordmark"><span class="start-wordmark-name"><span class="wordmark-accent">Tsuk</span>uyomi</span><span class="start-wordmark-subtitle">for Unreal</span></h1>
         <p v-if="messages.length && !configured" class="setup-notice">{{ accessReady ? '대화를 시작하려면 설정에서 LLM API 키를 입력하세요.' : '설정에서 내부 연결을 확인해 주세요.' }} <button class="quiet" :disabled="mutating" @click="tab = 'settings'">연결 설정 열기</button></p>
         <div v-if="messages.length" class="messages" aria-live="polite" aria-relevant="additions" :aria-busy="busy">
           <article v-for="(message, index) in messages" :key="index" :class="['message', message.role, { failed: message.failed }]">
@@ -398,7 +398,7 @@ function onQuestionEnter(event) {
                   엔진 버전: <strong>{{ engineVersion || '전체' }}</strong><span class="chevron" aria-hidden="true">⌄</span>
                 </button>
                 <div v-if="versionMenuOpen" id="version-menu" class="version-menu" role="menu" aria-label="엔진 버전 선택">
-                  <p class="version-menu-title" aria-hidden="true">엔진 버전</p>
+                  <p class="version-menu-title" aria-hidden="true">마이너 버전 · 패치 기록 포함</p>
                   <button v-for="version in versionOptions" :key="version" type="button" role="menuitemradio" tabindex="-1"
                     :aria-checked="engineVersion === version" @click="chooseVersion(version)">
                     <span><strong>{{ version ? `UE ${version}` : '전체 버전' }}</strong><small v-if="!version">모든 버전의 기록을 검색</small></span>
@@ -423,8 +423,9 @@ function onQuestionEnter(event) {
             <label for="kind">기록 종류</label><select id="kind" v-model="entry.kind"><option value="technique">기술 / 개발 방법</option><option value="error">오류 / 해결 사례</option></select>
             <label for="title">제목</label><input id="title" v-model="entry.title" required maxlength="200" placeholder="나중에 찾기 쉬운 제목" />
             <label for="version">엔진 버전</label><input id="version" v-model="entry.engine_version" required maxlength="50" placeholder="예: 5.5.4" />
+            <p class="hint">확인한 패치 버전까지 기록하세요. 검색은 같은 마이너 계열로 묶고 출처에는 입력한 버전을 유지합니다.</p>
             <label for="context">환경 / 전제 조건 <span class="optional">선택</span></label><textarea id="context" v-model="entry.context" rows="2" maxlength="3000" placeholder="플랫폼, 플러그인, 빌드 설정 등"></textarea>
-            <label for="content">{{ entry.kind === 'error' ? '오류 메시지 / 증상' : '기술 내용 / 적용 방법' }}</label><textarea id="content" v-model="entry.content" rows="5" required maxlength="20000"></textarea>
+            <label for="content">{{ entry.kind === 'error' ? '오류 메시지 / 증상' : '기술 내용 / 적용 방법' }}</label><textarea id="content" v-model="entry.content" rows="5" required maxlength="20000" placeholder="패치별 영향이나 수정 시점이 확인되면 해당 버전과 근거를 함께 기록하세요."></textarea>
             <template v-if="entry.kind === 'error'">
               <label for="reproduction">재현 방법</label><textarea id="reproduction" v-model="entry.reproduction" rows="3" required maxlength="5000"></textarea>
               <label for="solution">해결 방법 / 확인 결과</label><textarea id="solution" v-model="entry.solution" rows="4" required maxlength="10000"></textarea>

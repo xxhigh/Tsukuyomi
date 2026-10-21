@@ -25,7 +25,7 @@ def _engine_version(value: str) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Unreal Engine RAG CLI")
-    parser.add_argument("--engine-version", type=_engine_version, help="등록 버전과 정확히 일치하는 자료만 검색")
+    parser.add_argument("--engine-version", type=_engine_version, help="같은 마이너 버전 계열 검색 (5.4는 5.4.x 포함)")
     parser.add_argument("question", nargs="*", help="질문 (생략하면 대화 모드)")
     args = parser.parse_args()
     api_key = os.getenv("OPENAI_API_KEY", "").strip() or getpass("LLM API 키: ").strip()

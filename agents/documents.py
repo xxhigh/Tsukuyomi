@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -27,9 +28,17 @@ class StoredMetadata(DocumentMetadata):
     revision: int = Field(ge=1, strict=True)
 
 
+def version_family(value: str | None) -> str:
+    """숫자 버전은 major.minor 검색 계열로 묶되 비표준 표기는 그대로 둔다."""
+    value = (value or "").strip()
+    match = re.fullmatch(r"([0-9]+)\.([0-9]+)(?:\.[0-9]+)?", value)
+    return ".".join(match.group(1, 2)) if match else value
+
+
 def version_matches(stored: str | None, wanted: str) -> bool:
-    """쉼표로 구분된 버전 목록 중 하나라도 정확히 일치하면 True."""
-    return wanted.strip() in {version.strip() for version in (stored or "").split(",")}
+    """검색 계열만 비교한다. 원본 패치 버전이나 적용 가능성을 변경하지 않는다."""
+    family = version_family(wanted)
+    return bool(family) and family in {version_family(version) for version in (stored or "").split(",")}
 
 
 def _valid_filename(filename: str) -> bool:

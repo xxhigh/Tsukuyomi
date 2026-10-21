@@ -82,6 +82,7 @@ def build_graph(llm, retrieve=None):
                         "kind": item.get("kind")} for item in state.get("evidence", [])]
             messages = SUPERVISOR_TEMPLATE.invoke({"history": _history(state), "input": json.dumps(
                 {"question": state["question"], "engine_version": state.get("engine_version"),
+                 "search_version_family": documents.version_family(state.get("engine_version")) or None,
                  "rounds": rounds, "sources": summary}, ensure_ascii=False)}).to_messages()
             route = router.invoke(messages)
             if rounds == 0 and route.worker == "answer":
@@ -115,11 +116,13 @@ def build_graph(llm, retrieve=None):
             _check_corpus(state.get("corpus_sha256"))
         evidence = state.get("evidence", [])
         if not evidence:
-            prefix = f"선택한 엔진 버전({state['engine_version']})에서 " if state.get("engine_version") else ""
+            prefix = (f"선택한 엔진 버전 계열({documents.version_family(state['engine_version'])})에서 "
+                      if state.get("engine_version") else "")
             return {"answer": prefix + NO_EVIDENCE, "sources": [], "status": "insufficient"}
         numbered = [{"number": index, **item} for index, item in enumerate(evidence, 1)]
         messages = WRITER_TEMPLATE.invoke({"history": _history(state), "input": json.dumps(
             {"question": state["question"], "engine_version": state.get("engine_version"),
+             "search_version_family": documents.version_family(state.get("engine_version")) or None,
              "evidence": numbered}, ensure_ascii=False)}).to_messages()
         response = llm.invoke(messages)
         if local_retrieval:

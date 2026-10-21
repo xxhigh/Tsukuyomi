@@ -104,7 +104,7 @@ def test_cli_help_and_invalid_versions_precede_key_prompt_and_llm(monkeypatch, c
     assert "--engine-version" in captured.out + captured.err
 
 
-@pytest.mark.parametrize("version", ["5.5", "5.6"])
+@pytest.mark.parametrize("version", ["5.5", "5.5.2", "5.6"])
 def test_cli_selected_version_reaches_retriever_without_cross_version_answer(monkeypatch, capsys, version):
     from agents.graph import build_graph
     from agents.state import Route
@@ -124,10 +124,10 @@ def test_cli_selected_version_reaches_retriever_without_cross_version_answer(mon
     assert app.main() == 0
     assert calls == [{"k": 5, "kind": "error", "engine_version": version}]
     output = capsys.readouterr().out
-    if version == "5.5":
+    if version in {"5.5", "5.5.2"}:
         assert "[1] Shader 사례 | UE 5.5" in output
         assert model.writer_calls == 1
     else:
-        assert "선택한 엔진 버전(5.6)" in output
+        assert "선택한 엔진 버전 계열(5.6)" in output
         assert "Shader 사례" not in output
         assert model.writer_calls == 0
