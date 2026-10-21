@@ -7,6 +7,7 @@ Vue.js 웹 화면과 CLI를 제공하며, Python·FastAPI·LangGraph로 질문 �
 ## 무엇을 하나요?
 
 - **기술 질문과 오류 해결**: 등록된 기술 설명, 오류 증상, 재현 방법, 해결 사례를 검색해 답합니다.
+- **공개 웹 검색**: Tavily 키를 설정하면 Supervisor가 최신 공식 문서·패치 기록 등 공개 자료를 검색해 로컬 근거와 함께 활용합니다.
 - **근거 확인**: 답변의 `[1]`, `[2]` 인용과 함께 문서 제목, 엔진 버전, PDF 쪽수 등 출처 정보를 표시합니다. 웹 화면에서는 인용된 검색 원문을 최대 1,000자까지 펼쳐볼 수 있습니다.
 - **엔진 버전별 검색**: 특정 버전에 등록된 자료만 검색할 수 있습니다. 버전을 선택하지 않으면 전체 자료를 검색합니다.
 - **지식 관리**: 웹 화면에서 기술·오류 해결 기록을 등록·검색·수정·삭제하고, 서버의 PDF·Markdown 문서 정보를 편집합니다.
@@ -32,6 +33,8 @@ cp .env.example .env
 ```dotenv
 OPENAI_API_KEY=사용할_API_키
 OPENAI_MODEL=gpt-5-mini
+# 선택: 서버에서 사용할 Tavily 웹 검색 키
+TAVILY_API_KEY=
 ```
 
 `OPENAI_MODEL`은 프로젝트의 기본 설정값입니다. 사용하는 계정에서 접근할 수 있고 tool calling을 지원하는 모델로 변경할 수 있습니다. OpenAI 호환 제공자는 서버의 `OPENAI_BASE_URL`로 지정하며, 제공자별 호환성 확인이 필요합니다.
@@ -113,7 +116,7 @@ npm --prefix frontend run build
 Vue 웹 / CLI
     │ (웹 요청은 FastAPI 경유)
     ▼
-Supervisor ──→ 기술 검색 / 오류 검색
+Supervisor ──→ 기술 검색 / 오류 검색 / Tavily 웹 검색
     ▲                  │
     └──── 검색 결과 ────┘
     │ 검색 종료 후
@@ -121,7 +124,7 @@ Supervisor ──→ 기술 검색 / 오류 검색
 답변 작성 → 출처 번호 검증 → 답변과 인용 자료 반환
 ```
 
-LangGraph의 Supervisor가 질문과 이전 대화를 보고 `technique` 또는 `troubleshooting` 검색 노드를 선택합니다. 두 노드는 같은 로컬 검색기를 사용하되 자료 종류에 선호 점수를 적용합니다. 답변 전 최소 한 번 검색하고, 검색은 최대 두 번으로 제한합니다.
+LangGraph의 Supervisor가 질문과 이전 대화를 보고 `technique`, `troubleshooting`, `web_search` 노드를 선택합니다. 기술·오류 담당은 같은 로컬 검색기를 사용하되 자료 종류에 선호 점수를 적용합니다. 웹 담당은 서버에 Tavily 키가 있을 때 공개 문서를 검색합니다. 답변 전 최소 한 번 검색하고, 로컬·웹을 합쳐 최대 두 번으로 제한합니다.
 
 검색 결과를 모아 Writer가 인용 번호를 포함한 답변을 생성합니다. 설명 문장에 인용이 있는지, 번호가 검색 자료 범위 안에 있는지 검사합니다. 코드의 배열 인덱스나 링크 속 번호는 인용으로 계산하지 않습니다. 이 검사는 답변 내용의 사실성까지 보증하지는 않습니다.
 
@@ -134,6 +137,16 @@ LangGraph의 Supervisor가 질문과 이전 대화를 보고 `technique` 또는 
 
 파일과 메타데이터의 지문으로 변경을 감지해 인덱스를 갱신합니다. 인덱스는 세대별로 저장하며 기본적으로 현재 세대와 직전 세대를 보관합니다. 질문 처리 중 자료가 변경되면 재질문을 안내해 서로 다른 시점의 근거가 섞이지 않게 합니다.
 
+### Tavily 웹 검색
+
+서버 `.env`에 `TAVILY_API_KEY`를 설정하고 API 서버 또는 CLI를 다시 시작합니다. “UE 5.4 핫픽스 내용을 공식 웹 문서에서 찾아줘”처럼 질문하면 Supervisor가 웹 담당을 선택할 수 있습니다. 키가 없으면 로컬 검색을 유지합니다.
+
+웹 담당은 [Tavily Search API](https://docs.tavily.com/documentation/api-reference/endpoint/search)에 공개 검색어를 보내고 최대 5개 문서의 발췌를 받습니다. Tavily 생성 답변·페이지 전체·이미지는 요청하지 않으며, 결과당 발췌는 최대 4,000자로 제한합니다. 결과는 원본 지식이나 FAISS에 자동 등록하지 않습니다.
+
+웹 출처에는 URL과 검색 시각을 보존하고 화면에는 **웹 · 버전 미확인**으로 표시합니다. 검색어에 `5.4`가 들어갔다는 이유로 문서의 적용 버전을 확정하지 않습니다. 답변은 웹 발췌에 명시된 버전·패치 조건을 확인하도록 지시합니다. 인증·한도·연결 오류는 안내로 표시하며 로컬 근거가 있으면 그 범위로 답합니다.
+
+검색어는 Tavily로 전송됩니다. 내부 문서 본문이나 대화 전체를 검색 요청에 자동으로 첨부하지 않으며, Supervisor에는 내부 이름·로그·개인 정보를 복사하지 않고 공개 기술명·오류 코드로 검색어를 작성하도록 지시합니다. 이는 모델 지침이며 자동 비식별화 보증은 아닙니다. 키는 서버에만 설정합니다.
+
 ### 기술 구성과 파일
 
 | 경로                                         | 역할                                                     |
@@ -144,6 +157,7 @@ LangGraph의 Supervisor가 질문과 이전 대화를 보고 `technique` 또는 
 | `agents/graph.py`, `agents/state.py`         | Supervisor 그래프, 상태, 라우팅 및 출처 검증             |
 | `agents/docs.py`                             | 문서 분할, bge-m3 임베딩, FAISS·문자열 검색, 인덱스 관리 |
 | `agents/knowledge.py`, `agents/documents.py` | JSON 지식과 PDF·Markdown 메타데이터 관리                 |
+| `agents/web.py`                              | Tavily 검색, 웹 출처 변환, 외부 오류 처리                |
 | `agents/llm.py`                              | 외부 LLM 클라이언트와 연결 검사                          |
 | `prompts/`                                   | Supervisor·Writer 시스템 지시                            |
 | `data/unreal/docs/`                          | 검색 원본과 `metadata.json`                              |
@@ -157,6 +171,7 @@ LangGraph의 Supervisor가 질문과 이전 대화를 보고 `technique` 또는 
 | -------------------- | ------------------------------------------ | -------------------------- |
 | `OPENAI_API_KEY`     | 서버에서 사용할 LLM API 키                 | 없음                       |
 | `OPENAI_MODEL`       | 기본 LLM 모델                              | `gpt-5-mini`               |
+| `TAVILY_API_KEY`     | 서버에서 사용할 선택형 웹 검색 키          | 없음                       |
 | `OPENAI_BASE_URL`    | OpenAI 호환 API 주소                       | SDK 기본 주소              |
 | `INTERNAL_API_TOKEN` | 모든 `/api/*` 요청에 적용할 공유 접근 토큰 | 비어 있으면 접근 확인 생략 |
 | `RAG_MIN_SIMILARITY` | 검색 벡터 유사도 기준값                    | `0.45`                     |

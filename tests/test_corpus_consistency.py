@@ -120,3 +120,25 @@ def test_change_during_retrieval_stops_before_another_model_call(local_rag, monk
         build_graph(model).invoke({"question": "nanite", "engine_version": "5.5"})
     assert len(model.router_messages) == 1
     assert model.writer_calls == 0
+
+
+@pytest.mark.parametrize("phase", ["web", "writer"])
+def test_local_snapshot_is_checked_after_mixing_web_sources(local_rag, monkeypatch, phase):
+    def web_search(query, **kwargs):
+        if phase == "web":
+            update(local_rag)
+        return [{"doc_id": "web:reference", "chunk_id": 0, "title": "Public note", "source_type": "web",
+                 "kind": "web", "engine_version": "미지정", "content": "Public reference", "url": "https://example.com"}]
+
+    model = FakeLLM([Route(worker="technique", query="nanite", reason="로컬 검색"),
+                     Route(worker="web_search", query="Nanite docs", reason="웹 보완")], "기록입니다. [1][2]")
+    if phase == "writer":
+        original = model.invoke
+        def changed(messages):
+            result = original(messages)
+            update(local_rag)
+            return result
+        monkeypatch.setattr(model, "invoke", changed)
+    with pytest.raises(docs.CorpusChangedError):
+        build_graph(model, web_search=web_search).invoke({"question": "nanite", "engine_version": "5.5"})
+    assert model.writer_calls == int(phase == "writer")

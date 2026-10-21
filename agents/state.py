@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class Route(BaseModel):
-    worker: Literal["technique", "troubleshooting", "answer"]
+    worker: Literal["technique", "troubleshooting", "web_search", "answer"]
     query: str = Field(default="", max_length=1000)
     reason: str = Field(max_length=500)
 
@@ -23,3 +23,4 @@ class ChatState(TypedDict, total=False):
     answer: str
     sources: list[dict]
     status: Literal["done", "insufficient", "invalid_citations"]
+    warnings: list[str]

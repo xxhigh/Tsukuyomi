@@ -3,6 +3,12 @@ import pytest
 from agents import docs, knowledge
 
 
+@pytest.fixture(autouse=True)
+def isolate_tavily_key(monkeypatch):
+    # Tests must not use the server administrator's real Tavily credentials.
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+
+
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
     monkeypatch.setattr(knowledge, "DOCS_DIR", tmp_path / "docs")

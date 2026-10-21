@@ -40,10 +40,15 @@ def main():
                                "engine_version": args.engine_version},
                               config=run_config("cli", engine_version=args.engine_version))
         print("\n" + result["answer"])
+        for warning in result.get("warnings", []):
+            print(f"안내: {warning}")
         if result["status"] == "invalid_citations":
             return 1
         for source in result["sources"]:
-            print(f"[{source['number']}] {source['title']} | UE {source.get('engine_version', '미지정')}")
+            if source.get("source_type") == "web":
+                print(f"[{source['number']}] {source['title']} | 웹 검색 · 버전 미확인 | {source['url']}")
+            else:
+                print(f"[{source['number']}] {source['title']} | UE {source.get('engine_version', '미지정')}")
         history.extend([{"role": "user", "content": question},
                         {"role": "assistant", "content": result["answer"][:8000]}])
         return 0

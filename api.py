@@ -225,6 +225,7 @@ def chat(payload: ChatRequest, x_llm_api_key: str | None = Header(default=None))
     return {"run_id": run_id, "answer": result["answer"], "answer_blocks": _answer_blocks(result["answer"]),
             "sources": result["sources"],
             "engine_version": payload.engine_version,
+            "warnings": result.get("warnings", []),
             "status": result["status"], "decisions": result["decisions"]}
 
 

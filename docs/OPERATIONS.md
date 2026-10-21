@@ -7,7 +7,7 @@
 
 - **Vue.js**: 대화, 요청별 LLM 키 입력, 기술·오류 해결 사례 관리, PDF·Markdown 정보 편집.
 - **FastAPI**: `/api/chat`, `/api/llm/check`, `/api/knowledge`, `/api/knowledge/{id}`, `/api/documents`, `/api/documents/{filename}`, `/api/config`, `/api/health`.
-- **Supervisor**: 질문에 따라 기술/오류 검색 담당을 선택하고 최대 2회 검색 후 답변합니다.
+- **Supervisor**: 질문에 따라 기술/오류/웹 검색 담당을 선택하고 로컬·웹을 합쳐 최대 2회 검색 후 답변합니다.
 - **RAG**: 로컬 `BAAI/bge-m3` 정규화 임베딩 + FAISS + bigram 재정렬.
 - **외부 LLM**: OpenAI 또는 tool calling을 지원하는 OpenAI 호환 chat completions API.
 
@@ -93,6 +93,22 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 **연결 해제**는 현재 화면의 키·대화·지식 목록·편집 상태를 비웁니다. 저장된 대화 기록은 유지하며, 재연결 시 내부 접근 확인에 성공하면 다시 불러옵니다. 접근 토큰도 메모리에만 보관하며 새로고침하면 지워집니다. 서버의 공유 토큰 자체는 유지되며, 교체하려면 서버 설정을 바꾸고 재시작합니다. CLI와 서버 파일에 대한 로컬 접근은 이 HTTP 인증의 적용 대상에 포함하지 않습니다.
 
 현재는 공유 토큰을 통한 기본 API 접근 확인을 제공합니다. 프런트엔드 정적 화면과 API 스키마는 열람할 수 있습니다. 팀 배포 전 HTTPS, SSO와 사용자별 권한 정책을 정해야 하며, 기본 실행 주소는 계속 loopback입니다.
+
+## Tavily 웹 검색
+
+`.env`의 선택 항목 `TAVILY_API_KEY`를 설정하고 서버/CLI를 다시 시작하면 Supervisor의 `web_search` 담당을 사용할 수 있습니다. 키는 서버에서만 읽으며 웹 입력 폼·브라우저 저장소·LLM 입력·기본 트레이스에 넣지 않습니다. 키가 없는데 모델이 웹을 선택하면 로컬 검색으로 전환하고 설정 안내를 반환합니다.
+
+최신 정보·명시적 웹 검색 요청에는 웹 담당을 우선하도록 지시하고, 로컬 자료가 부족할 때도 공개 기술 정보로 보완할 수 있습니다. 검색 횟수는 로컬과 웹을 합쳐 최대 2회입니다. 웹 전용 경로는 로컬 문서·임베딩·FAISS를 요구하지 않습니다. 혼합 경로에서는 기존 로컬 자료 변경 감지를 유지합니다.
+
+[Tavily 공식 Search API](https://docs.tavily.com/documentation/api-reference/endpoint/search)를 Bearer 인증으로 호출합니다. `search_depth=basic`, `topic=general`, `max_results=5`, `include_answer=false`, `include_raw_content=false`, `include_images=false`를 사용하며 HTTP 제한 시간은 20초입니다. HTTP 계층에서 자동 재시도하거나 리다이렉트를 따라가지 않습니다. Supervisor의 후속 검색도 전체 2회 상한에 포함됩니다.
+
+검색어는 Supervisor가 만든 공개 검색어이며 숫자 엔진 버전과 Unreal Engine 문맥을 붙입니다. 내부 문서 원문과 대화 전체는 HTTP 요청에 추가하지 않습니다. 검색어를 만드는 모델에는 내부 제목·주소·로그·인증 정보·개인 정보를 복사하지 않도록 지시하지만 모델 지침만으로 자동 비식별화를 보증하지는 않습니다.
+
+결과당 최대 4,000자의 발췌를 답변 근거로 사용합니다. 빈 자료·잘못된 URL은 제외하고 같은 페이지의 중복은 합칩니다. 웹 문서는 `source_type=web`, `kind=web`, `engine_version=미지정`, `url`, `retrieved_at`, 선택적 `published_date`를 포함합니다. 검색 시각은 게시일이나 버전 검증일이 아니며, 검색 버전은 문서의 검증된 버전으로 복사하지 않습니다. 선택한 버전의 적용 여부는 발췌 근거에 따라 확인하도록 Writer에 지시합니다.
+
+API의 기존 `sources`에 웹 자료를 포함하고 `warnings` 문자열 배열로 검색 실패를 안내합니다. Tavily 키 거부·한도·타임아웃·잘못된 응답은 원문 오류나 키를 노출하지 않습니다. 유효한 로컬 근거가 있으면 그 근거로 답하고, 근거가 없으면 `status=insufficient`와 안내를 반환합니다. 출처 번호 검증은 웹 자료에도 적용합니다.
+
+화면은 **웹 · 버전 미확인**과 링크를 표시하며 펼쳐보기에는 Tavily 발췌임을 밝힙니다. 브라우저 대화 기록에도 웹 출처 종류·검색/게시 시각·실패 안내를 보존합니다. 웹 결과는 로컬 원본 문서와 인덱스에 자동 저장하지 않습니다. LangSmith를 켜면 검색어와 웹 발췌도 그래프 추적에 포함될 수 있습니다.
 
 ## 대화 기록
 
@@ -184,7 +200,7 @@ npm --prefix frontend test
 npm --prefix frontend run build
 ```
 
-기본 테스트는 실제 LangGraph·FAISS 저장/로드·문서 파싱·API를 실행하며 외부 LLM과 임베딩 모델만 대체합니다. LLM 연결 확인 테스트는 실제 SDK·structured output 파서와 모의 HTTP 응답을 사용합니다. 출처 번호 검사는 인용의 존재·범위를 확인하며 답변 내용의 사실성을 보증하지 않습니다.
+기본 테스트는 실제 LangGraph·FAISS 저장/로드·문서 파싱·API를 실행하며 외부 LLM·임베딩 모델·Tavily HTTP 응답은 대체합니다. LLM 연결 확인 테스트는 실제 SDK·structured output 파서와 모의 HTTP 응답을 사용합니다. 출처 번호 검사는 인용의 존재·범위를 확인하며 답변 내용의 사실성을 보증하지 않습니다.
 
 실제 bge-m3 검증은 전체 모델이 Hugging Face 캐시에 있는 환경에서 선택 실행합니다. 기본 테스트에서는 건너뛰며, 아래 명령은 오프라인으로 실행하므로 캐시가 없으면 다운로드 없이 실패합니다.
 
@@ -202,6 +218,7 @@ HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 TOKENIZERS_PA
 
 `npm --prefix frontend test`는 대화 상태·저장/복원·초안·실패/중단·저장 오류를 Node에서 검증합니다. `python tests/browser_conversations.py`는 같은 Playwright/Chromium과 `BROWSER_BASE_URL` 설정으로 대화 생성·재개·재로드·이력 분리·삭제·접근 제어 및 모바일 배치를 모의 API로 확인합니다.
 
+`python tests/browser_web_search.py`는 같은 Playwright/Chromium 및 `BROWSER_BASE_URL` 설정으로 웹 출처 링크·버전 미확인 표시·발췌·오류 안내·저장/복원과 모바일 배치를 모의 API로 확인합니다. 실제 Tavily와 LLM은 호출하지 않습니다.
 
 정답 문서 ID가 붙은 질문 목록으로 검색 품질을 평가할 수 있습니다. 외부 LLM 호출 없이 Hit Rate·Recall·MRR과 근거 없음 처리를 측정합니다.
 

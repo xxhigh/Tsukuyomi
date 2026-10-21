@@ -276,7 +276,7 @@ async function ask() {
     if (epoch !== workspaceEpoch.value || !accessReady.value) return
     if (result.status === 'invalid_citations') throw new Error(result.answer)
     activeConversation.messages.push({ role: 'assistant', content: result.answer, answerBlocks: result.answer_blocks,
-      sources: result.sources, status: result.status, engineVersion: selectedVersion })
+      sources: result.sources, warnings: result.warnings, status: result.status, engineVersion: selectedVersion })
   } catch (error) {
     // 실패한 질문을 후속 요청의 대화 이력에 포함하지 않는다.
     if (!error.accessDenied && epoch === workspaceEpoch.value) {
@@ -413,14 +413,15 @@ function onQuestionEnter(event) {
               </template>
               <template v-else>{{ message.content }}</template>
             </div>
+            <p v-for="warning in message.warnings || []" :key="warning" class="hint" role="status">{{ warning }}</p>
             <ul v-if="message.sources?.length" class="sources" aria-label="답변 근거">
               <li v-for="source in message.sources" :key="source.number">
                 <span class="source-number">[{{ source.number }}]</span>
                 <a v-if="safeUrl(source.url)" :href="safeUrl(source.url)" target="_blank" rel="noopener noreferrer">{{ source.title }}</a><span v-else>{{ source.title }}</span>
-                <small>UE {{ source.engine_version || '미지정' }}{{ source.page ? ` · p.${source.page}` : '' }}</small>
+                <small v-if="source.source_type === 'web'">웹 · 버전 미확인</small><small v-else>UE {{ source.engine_version || '미지정' }}{{ source.page ? ` · p.${source.page}` : '' }}</small>
                 <details v-if="source.excerpt" class="source-excerpt">
                   <summary>검색 원문 보기 <span class="sr-only">출처 [{{ source.number }}] {{ source.title }}</span></summary>
-                  <p class="hint">답변 당시 검색한 원문의 일부입니다.</p>
+                  <p class="hint">{{ source.source_type === 'web' ? 'Tavily가 반환한 웹 문서 발췌입니다.' : '답변 당시 검색한 원문의 일부입니다.' }}</p>
                   <blockquote>{{ source.excerpt }}</blockquote>
                   <p v-if="source.excerpt_truncated" class="hint">원문이 길어 앞 1,000자만 표시했습니다.</p>
                 </details>
