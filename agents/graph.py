@@ -13,6 +13,7 @@ from markdown_it import MarkdownIt
 from prompts import DIRECT_ANSWER_PROMPT, SUPERVISOR_PROMPT, WRITER_PROMPT
 
 from . import docs, documents, knowledge, web
+from .orchestration import build_orchestration
 from .state import ChatState, Route
 
 MAX_RESEARCH_ROUNDS = 2
@@ -33,7 +34,7 @@ DIRECT_ANSWER_TEMPLATE = _prompt(DIRECT_ANSWER_PROMPT, "direct_answer_prompt")
 
 def run_config(source: str, *, run_id: UUID | None = None, engine_version: str | None = None) -> dict:
     """그래프 실행 설정. LANGSMITH_TRACING=true이면 이 이름·태그·metadata로 LangSmith에 기록된다."""
-    config = {"recursion_limit": 12, "run_name": "tsukuyomi_chat", "tags": [source],
+    config = {"recursion_limit": 32, "run_name": "tsukuyomi_chat", "tags": [source],
               "metadata": {"source": source, "engine_version": engine_version or "전체"}}
     if run_id:
         config["run_id"] = run_id
@@ -98,6 +99,8 @@ def build_graph(llm, retrieve=None, web_search=None):
             if route.worker == "direct_answer" and (rounds > 0 or state.get("evidence")):
                 # 검색 후에는 근거 부족·인용 검증을 직접 답변으로 우회할 수 없다.
                 route = Route(worker="answer", reason="검색 결과는 근거 기반 답변 단계에서 처리합니다.")
+            if route.worker == "orchestrator" and rounds > 0:
+                route = Route(worker="answer", reason="복합 조사 경로는 첫 판단에서만 선택합니다.")
             if route.worker == "web_search" and not web_available:
                 warnings = list(dict.fromkeys([*warnings, str(web.WebSearchError("unconfigured"))]))
                 route = Route(worker="technique", reason="웹 검색 키가 없어 로컬 자료를 검색합니다.")
@@ -159,15 +162,22 @@ def build_graph(llm, retrieve=None, web_search=None):
             _check_corpus(state.get("corpus_sha256"))
         evidence = state.get("evidence", [])
         numbered = [{"number": index, **item} for index, item in enumerate(evidence, 1)]
+        if state.get("complex_mode"):
+            accepted = set(state.get("accepted_sources", []))
+            numbered = [item for item in numbered if item["number"] in accepted]
         if not numbered:
             prefix = (f"선택한 엔진 버전 계열({documents.version_family(state['engine_version'])})에서 "
                       if state.get("engine_version") else "")
             return {"answer": prefix + NO_EVIDENCE, "sources": [], "status": "insufficient"}
+        research_context = ({"research_tasks": state.get("research_tasks", []),
+                             "research_gaps": state.get("research_gaps", []),
+                             "previous_draft": state.get("draft_answer", ""),
+                             "revision_feedback": state.get("revision_feedback", "")} if state.get("complex_mode") else {})
         messages = WRITER_TEMPLATE.invoke({"history": _history(state), "input": json.dumps(
             {"question": state["question"], "engine_version": state.get("engine_version"),
              "search_version_family": documents.version_family(state.get("engine_version")) or None,
              "warnings": state.get("warnings", []),
-             "evidence": numbered}, ensure_ascii=False)}).to_messages()
+             "evidence": numbered, **research_context}, ensure_ascii=False)}).to_messages()
         response = llm.invoke(messages)
         if local_retrieval and state.get("corpus_sha256") is not None:
             _check_corpus(state.get("corpus_sha256"))
@@ -182,6 +192,16 @@ def build_graph(llm, retrieve=None, web_search=None):
                    for item in numbered if str(item["number"]) in citations]
         return {"answer": text, "sources": sources, "status": "done"}
 
+    def snapshot(state, *, local=False):
+        if local_retrieval and (local or state.get("corpus_sha256") is not None):
+            return _check_corpus(state.get("corpus_sha256"))
+        return state.get("corpus_sha256")
+
+    def search_task(state, task):
+        isolated = {**state, "route": {"worker": task["worker"], "query": task["query"]},
+                    "evidence": [], "rounds": 0, "warnings": []}
+        return research_web(isolated) if task["worker"] == "web_search" else research(isolated)
+
     graph = StateGraph(ChatState)
     graph.add_node("supervisor", supervisor)
     graph.add_node("technique", research)
@@ -189,13 +209,23 @@ def build_graph(llm, retrieve=None, web_search=None):
     graph.add_node("web_search", research_web)
     graph.add_node("answer", answer)
     graph.add_node("direct_answer", direct_answer)
+    for name, node in build_orchestration(llm, search=search_task, snapshot=snapshot, make_prompt=_prompt,
+                                           history=_history, answer=answer, web_available=web_available).items():
+        graph.add_node(name, node)
     graph.add_edge(START, "supervisor")
     graph.add_conditional_edges("supervisor", lambda state: state["route"]["worker"],
                                 {"technique": "technique", "troubleshooting": "troubleshooting",
-                                 "web_search": "web_search", "answer": "answer", "direct_answer": "direct_answer"})
+                                 "web_search": "web_search", "answer": "answer", "direct_answer": "direct_answer",
+                                 "orchestrator": "orchestrator"})
     graph.add_edge("technique", "supervisor")
     graph.add_edge("troubleshooting", "supervisor")
     graph.add_edge("web_search", "supervisor")
     graph.add_edge("answer", END)
     graph.add_edge("direct_answer", END)
+    graph.add_conditional_edges("orchestrator", lambda state: state["next_stage"],
+                                {"workers": "research_workers", "compose": "compose"})
+    graph.add_conditional_edges("research_workers", lambda state: state["next_stage"],
+                                {"orchestrator": "orchestrator", "compose": "compose"})
+    graph.add_conditional_edges("compose", lambda state: state["next_stage"], {"verify": "verify", "end": END})
+    graph.add_conditional_edges("verify", lambda state: state["next_stage"], {"compose": "compose", "end": END})
     return graph.compile()

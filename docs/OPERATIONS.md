@@ -7,7 +7,7 @@
 
 - **Vue.js**: 대화, 요청별 LLM 키 입력, 기술·오류 해결 사례 관리, PDF·Markdown 정보 편집.
 - **FastAPI**: `/api/chat`, `/api/llm/check`, `/api/knowledge`, `/api/knowledge/{id}`, `/api/documents`, `/api/documents/{filename}`, `/api/config`, `/api/health`.
-- **Supervisor**: 간단한 대화는 직접 답변하고, 기술/오류 질문은 로컬·웹을 합쳐 최대 2회 검색합니다.
+- **Supervisor**: 간단한 대화는 직접 답변하고, 단순 기술/오류 질문은 로컬·웹을 합쳐 최대 2회 검색합니다. 복합 질문은 Orchestrator–Workers로 분해·조사·검증합니다.
 - **RAG**: 로컬 `BAAI/bge-m3` 정규화 임베딩 + FAISS + bigram 재정렬.
 - **외부 LLM**: OpenAI 또는 tool calling을 지원하는 OpenAI 호환 chat completions API.
 
@@ -98,7 +98,7 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 
 `.env`의 선택 항목 `TAVILY_API_KEY`를 설정하고 서버/CLI를 다시 시작하면 Supervisor의 `web_search` 담당을 사용할 수 있습니다. 키는 서버에서만 읽으며 웹 입력 폼·브라우저 저장소·LLM 입력·기본 트레이스에 넣지 않습니다. 키가 없는데 모델이 웹을 선택하면 로컬 검색으로 전환하고 설정 안내를 반환합니다.
 
-최신 정보·명시적 웹 검색 요청에는 웹 담당을 우선하도록 지시하고, 로컬 자료가 부족할 때도 공개 기술 정보로 보완할 수 있습니다. 검색 횟수는 로컬과 웹을 합쳐 최대 2회입니다. 웹 전용 경로는 로컬 문서·임베딩·FAISS를 요구하지 않습니다. 혼합 경로에서는 기존 로컬 자료 변경 감지를 유지합니다.
+최신 정보·명시적 웹 검색 요청에는 웹 담당을 우선하도록 지시하고, 로컬 자료가 부족할 때도 공개 기술 정보로 보완할 수 있습니다. 검색 횟수는 로컬과 웹을 합쳐 단순 경로 최대 2회, 복합 조사 최대 6회입니다. 웹 전용 경로는 로컬 문서·임베딩·FAISS를 요구하지 않습니다. 혼합 경로에서는 기존 로컬 자료 변경 감지를 유지합니다.
 
 [Tavily 공식 Search API](https://docs.tavily.com/documentation/api-reference/endpoint/search)를 Bearer 인증으로 호출합니다. `search_depth=basic`, `topic=general`, `max_results=5`, `include_answer=false`, `include_raw_content=false`, `include_images=false`를 사용하며 HTTP 제한 시간은 20초입니다. HTTP 계층에서 자동 재시도하거나 리다이렉트를 따라가지 않습니다. Supervisor의 후속 검색도 전체 2회 상한에 포함됩니다.
 
@@ -228,6 +228,18 @@ python -m agents.evaluate outputs/evaluation/cases.json --k 5 --output outputs/r
 
 평가 파일은 직접 준비해야 합니다. 형식과 지표 정의는 [검색 평가 안내](EVALUATION.md)를 참고하세요. 실제 팀 질문의 정답 목록·목표 점수와 생성 답변 정확도 평가는 TODO입니다.
 
+## 복합 질문 조사 운영
+
+Supervisor는 단순 대화·단일 검색과 복합 질문을 구분한다. 복합 질문에서는 `agents/orchestration.py`의 Orchestrator–Workers가 하위 질문을 계획하고 검색 본문을 평가해 후속 작업을 만든다. 기존 검색기·서버 Tavily 키·선택 마이너 버전 필터를 그대로 사용하며 새 설정이나 의존성은 없다.
+
+한도는 전체 검색 6회, 배치 3개, 계획 호출 4회, 답변 수정 1회다. 단순 검색은 기존 2회다. 120초 이후 새 조사·평가·수정 호출을 시작하지 않지만 이미 실행 중인 동기 호출은 취소하지 않는다. 기존 LLM의 호출당 60초 제한과 재시도, Tavily의 20초 제한, 자료/인덱스 잠금 대기와 최초 모델 로딩 때문에 전체 응답은 더 길 수 있다. 운영 환경의 프록시 타임아웃은 이를 고려해 별도로 정해야 한다.
+
+로컬 검색은 문서 잠금으로 직렬화하며 LLM 호출 중에는 잠금을 유지하지 않는다. 첫 로컬 검색에서 자료 지문을 잡고 이후 계획·평가·웹 혼합·최종 검증에서도 확인한다. 자료 변경 시 기존과 동일하게 API `409`로 다시 질문하도록 안내한다. 웹 전용 조사는 로컬 모델/인덱스를 로드하지 않는다.
+
+작업별 내부 질문·검색어·의존 관계·발견·미해결 사항·초안은 요청 상태에만 유지하고 API 응답/기본 로컬 트레이스에는 추가하지 않는다. 트레이스에는 기존 실행 ID·상태·검색 횟수·담당 이름만 남긴다. 다만 LangSmith를 켜면 확장된 그래프 상태·검색 본문·평가 피드백과 추가 LLM 호출도 전송된다. 웹 공개 검색어 지침은 모델 기반이며 비식별화 보증이 아니다.
+
+`python -m pytest -q tests/test_orchestration.py`는 모의 LLM/검색으로 질문 분해·병렬 실행·본문 기반 후속 조사·재작성·작업/시간 예산·의존성/중복 차단·근거 필터·답변 수정/거절·자료 변경·API/CLI 호환을 검증한다. 실제 SDK 구조화 출력은 모의 HTTP로 확인한다. 실제 팀 질문에서의 분류·평가 정확도 및 비용/지연은 별도 평가가 필요하다. 일반 LLM의 평가/수정 흐름이며 reflection token 학습 기반 Self-RAG 모델은 사용하지 않는다.
+
 ## 저장 범위와 미정 사항
 
 입력한 접근 토큰·LLM 키는 브라우저 메모리에만 두며 새로고침 시 지워집니다. 대화 기록은 같은 origin(프로토콜·호스트·포트)의 localStorage에 저장하며 새로고침 뒤 내부 접근 확인에 성공하면 활성 대화와 기록 목록을 복원합니다. 대화 데이터만 저장하며 연결 설정·키·토큰은 저장하지 않습니다. 저장소는 암호화하거나 사용자 계정별로 분리하지 않으므로 같은 브라우저 프로필을 공유하면 기록도 공유합니다. 서버는 요청 중에만 입력 키를 사용하고, 기본 트레이스에는 실행 ID·상태·담당 이름만 기록합니다. 질문과 검색 문맥은 선택한 외부 LLM으로 전송되며, LangSmith 추적을 켜면 LangSmith에도 전송됩니다. `outputs/traces/`는 운영 상태 기록용입니다.
@@ -236,4 +248,4 @@ python -m agents.evaluate outputs/evaluation/cases.json --k 5 --output outputs/r
 
 지식 삭제는 원본 JSON을 지우고 다음 검색에서 제외합니다. 보관 중인 인덱스 세대와 이미 표시한 대화에는 이전 내용이 남을 수 있습니다. 마지막 문서를 삭제한 경우에는 새 인덱스를 만들지 않으므로 현재 세대도 남습니다. 완전한 데이터 삭제·보존 정책은 별도로 확정해야 합니다.
 
-기존 투자 평가 전용 Python 모듈과 미사용 프롬프트는 삭제했습니다. `prompts/`에는 현재 사용하는 `supervisor.md`, `writer.md`와 로더만 유지합니다. 기존 투자 원본 자료는 남아 있지만 새 실행 경로에서는 사용하지 않습니다.
+기존 투자 평가 전용 Python 모듈과 미사용 프롬프트는 삭제했습니다. `prompts/`에는 Supervisor·직접 답변·Writer와 복합 조사의 계획/근거/답변 평가 지시 및 로더를 유지합니다. 기존 투자 원본 자료는 남아 있지만 새 실행 경로에서는 사용하지 않습니다.
