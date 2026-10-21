@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import DocumentLibrary from './DocumentLibrary.vue'
 import { ENGINE_VERSIONS as engineVersions } from './engineVersions.js'
+import { createConversationStore } from './conversations.js'
 
 const tab = ref('chat')
 const apiKey = ref('')
@@ -14,8 +15,10 @@ const accessReady = ref(false)
 const connecting = ref(false)
 const accessError = ref('')
 const configured = computed(() => accessReady.value && Boolean(apiKey.value.trim() || serverKey.value))
-const question = ref('')
-const messages = ref([])
+const chatHistory = createConversationStore()
+const { question, messages, engineVersion, chatError, recent: recentConversations,
+  activeId: activeConversationId, storageWarning } = chatHistory
+const conversationDeleteTarget = ref('')
 const entries = ref([])
 const entrySearch = ref('')
 const filteredEntries = computed(() => {
@@ -28,7 +31,6 @@ const documents = ref([])
 const workspaceEpoch = ref(0)
 const documentSaving = ref(false)
 const documentsError = ref('')
-const engineVersion = ref('')
 const versionOptions = ['', ...engineVersions]
 const versionMenuOpen = ref(false)
 const versionPicker = ref(null)
@@ -42,7 +44,6 @@ const deletingId = ref('')
 const deleteTarget = ref('')
 const mutating = computed(() => saving.value || documentSaving.value || checking.value || Boolean(deletingId.value))
 const loading = ref(true)
-const chatError = ref('')
 const knowledgeError = ref('')
 const notice = ref('')
 const conversation = ref(null)
@@ -101,7 +102,8 @@ function clearWorkspace() {
   checking.value = false
   connectionNotice.value = ''
   connectionError.value = ''
-  messages.value = []
+  chatHistory.clearVisible()
+  conversationDeleteTarget.value = ''
   entries.value = []
   entrySearch.value = ''
   documents.value = []
@@ -133,6 +135,7 @@ async function connect() {
     model.value = config.model
     serverKey.value = config.has_server_key
     accessReady.value = true
+    chatHistory.load()
     await loadKnowledge()
   } catch (error) {
     accessError.value = error.message
@@ -225,14 +228,39 @@ async function scrollToEnd() {
   conversation.value?.scrollIntoView({ block: 'end', behavior: 'instant' })
 }
 
+function startNewConversation() {
+  if (busy.value || mutating.value || !accessReady.value) return
+  chatHistory.startNew()
+  conversationDeleteTarget.value = ''
+  versionMenuOpen.value = false
+  tab.value = 'chat'
+}
+
+function openConversation(id) {
+  if (busy.value || mutating.value || !accessReady.value) return
+  chatHistory.open(id)
+  conversationDeleteTarget.value = ''
+  versionMenuOpen.value = false
+  tab.value = 'chat'
+  scrollToEnd()
+}
+
+function deleteConversation(id) {
+  if (busy.value || mutating.value || !accessReady.value) return
+  chatHistory.remove(id)
+  conversationDeleteTarget.value = ''
+}
+
 async function ask() {
   const text = question.value.trim()
   if (!text || busy.value || checking.value || !configured.value) return
   const selectedVersion = engineVersion.value.trim() || null
   const history = messages.value.filter(message => !message.failed && message.engineVersion === selectedVersion).slice(-10)
     .map(({ role, content }) => ({ role, content: content.slice(0, 8000) }))
+  const epoch = workspaceEpoch.value
+  const activeConversation = chatHistory.ensureConversation(text)
   const current = { role: 'user', content: text, engineVersion: selectedVersion }
-  messages.value.push(current)
+  activeConversation.messages.push(current)
   question.value = ''
   chatError.value = ''
   busy.value = true
@@ -245,19 +273,20 @@ async function ask() {
       method: 'POST', headers, signal: chatController.signal,
       body: JSON.stringify({ question: text, history, model: model.value.trim() || null, engine_version: selectedVersion }),
     })
+    if (epoch !== workspaceEpoch.value || !accessReady.value) return
     if (result.status === 'invalid_citations') throw new Error(result.answer)
-    messages.value.push({ role: 'assistant', content: result.answer, answerBlocks: result.answer_blocks,
+    activeConversation.messages.push({ role: 'assistant', content: result.answer, answerBlocks: result.answer_blocks,
       sources: result.sources, status: result.status, engineVersion: selectedVersion })
   } catch (error) {
     // 실패한 질문을 후속 요청의 대화 이력에 포함하지 않는다.
-    if (!error.accessDenied) {
-      messages.value[messages.value.length - 1].failed = true
+    if (!error.accessDenied && epoch === workspaceEpoch.value) {
+      activeConversation.messages[activeConversation.messages.length - 1].failed = true
       question.value = text
       chatError.value = error.name === 'AbortError' ? '응답 대기를 취소했습니다.' : error.message
     }
   } finally {
     busy.value = false
-    await scrollToEnd()
+    if (epoch === workspaceEpoch.value) await scrollToEnd()
   }
 }
 
@@ -345,12 +374,27 @@ function onQuestionEnter(event) {
         <button :class="{ selected: tab === 'knowledge' }" :aria-pressed="tab === 'knowledge'" :disabled="mutating" @click="tab = 'knowledge'"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 3v18M11 8h5M11 12h5"/></svg>지식 저장소<span>{{ entries.length }}</span></button>
         <button :class="{ selected: tab === 'settings' }" :aria-pressed="tab === 'settings'" :disabled="mutating" @click="tab = 'settings'"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg>설정<span aria-hidden="true">↗</span></button>
       </nav>
+      <section v-if="accessReady" class="conversation-history" aria-labelledby="conversation-history-title">
+        <div class="history-heading"><h2 id="conversation-history-title">최근 대화</h2><button type="button" class="quiet" aria-label="새 대화 시작" :disabled="busy || mutating" @click="startNewConversation">＋</button></div>
+        <p v-if="storageWarning" class="history-warning" role="alert">{{ storageWarning }}</p>
+        <ul class="conversation-list">
+          <li v-for="item in recentConversations" :key="item.id">
+            <div class="conversation-row" :class="{ active: activeConversationId === item.id }">
+              <button type="button" class="conversation-link" :aria-label="`대화 열기: ${item.title}`" :aria-current="activeConversationId === item.id ? 'true' : undefined" :title="item.title" :disabled="busy || mutating" @click="openConversation(item.id)">{{ item.title }}</button>
+              <button type="button" class="conversation-delete" :aria-label="`대화 삭제: ${item.title}`" :disabled="busy || mutating" @click="conversationDeleteTarget = item.id">×</button>
+            </div>
+            <div v-if="conversationDeleteTarget === item.id" class="conversation-delete-confirm" role="group" :aria-label="`${item.title} 대화 삭제 확인`">
+              <p>이 브라우저에서 대화를 삭제할까요?</p><div class="entry-actions"><button type="button" class="danger" :disabled="busy || mutating" @click="deleteConversation(item.id)">삭제 확인</button><button type="button" @click="conversationDeleteTarget = ''">취소</button></div>
+            </div>
+          </li>
+        </ul>
+      </section>
       <footer class="sidebar-footer">COPYRIGHT 2026. xxhigh</footer>
     </aside>
 
     <main id="workspace" :class="{ 'idle-workspace': tab === 'chat' && !messages.length, 'chat-mode': tab === 'chat' }" tabindex="-1">
       <header v-if="tab !== 'chat'" class="workspace-header"><span>{{ tab === 'knowledge' ? '지식' : '설정 / 연결 관리' }}</span><span class="subtle">UNREAL ENGINE</span></header>
-      <header v-else-if="messages.length" class="chat-header"><span>워크스페이스 <span aria-hidden="true">/</span> <strong>기술 지원 대화</strong></span><button class="quiet" :disabled="busy" @click="messages = []; chatError = ''">새 대화 <span aria-hidden="true">＋</span></button></header>
+      <header v-else-if="messages.length" class="chat-header"><span>워크스페이스 <span aria-hidden="true">/</span> <strong>기술 지원 대화</strong></span><button class="quiet" :disabled="busy || mutating" @click="startNewConversation">새 대화 <span aria-hidden="true">＋</span></button></header>
       <section v-if="tab === 'chat'" class="chat-workspace" :class="{ 'is-empty': !messages.length }" aria-label="대화">
         <h1 v-if="!messages.length" class="start-wordmark"><span class="start-wordmark-name"><span class="wordmark-accent">Tsuk</span>uyomi</span><span class="start-wordmark-subtitle">for Unreal</span></h1>
         <p v-if="messages.length && !configured" class="setup-notice">{{ accessReady ? '대화를 시작하려면 설정에서 LLM API 키를 입력하세요.' : '설정에서 내부 연결을 확인해 주세요.' }} <button class="quiet" :disabled="mutating" @click="tab = 'settings'">연결 설정 열기</button></p>
