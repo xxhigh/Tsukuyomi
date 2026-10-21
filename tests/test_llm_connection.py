@@ -70,7 +70,7 @@ def test_check_uses_real_sdk_with_route_schema_and_isolated_keys(client, provide
         assert request["body"]["model"] == "selected-model"
         assert request["body"]["tool_choice"] == {"type": "function", "function": {"name": "Route"}}
         assert request["body"]["tools"][0]["function"]["parameters"]["properties"]["worker"]["enum"] == [
-            "technique", "troubleshooting", "web_search", "answer"]
+            "technique", "troubleshooting", "web_search", "answer", "direct_answer"]
     assert provider["requests"][0]["body"]["messages"] == provider["requests"][1]["body"]["messages"]
     assert list(workspace.rglob("*")) == []
 

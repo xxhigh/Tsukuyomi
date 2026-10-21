@@ -65,6 +65,60 @@ def test_supervisor_cannot_skip_search_and_empty_evidence_never_calls_writer():
     assert result["sources"] == []
 
 
+@pytest.mark.parametrize("question", ["안녕", "고마워", "RAG가 무슨 뜻이야?", "이전 답변을 세 줄로 요약해줘"])
+def test_direct_answer_skips_all_retrieval_and_preserves_context(monkeypatch, question):
+    from agents import docs, web
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("직접 답변은 검색·임베딩·자료 지문에 접근하면 안 됩니다.")
+
+    for name in ("retrieve", "_embeddings", "_fingerprint"):
+        monkeypatch.setattr(docs, name, unexpected)
+    monkeypatch.setattr(web, "search", unexpected)
+    monkeypatch.setenv("TAVILY_API_KEY", "test-key")
+    history = [{"role": "user", "content": "이전 질문"},
+               {"role": "assistant", "content": "요약할 이전 답변 [1]"}]
+    model = FakeLLM([Route(worker="direct_answer", reason="새 근거가 필요 없는 대화")], "간단한 답변입니다.")
+    result = build_graph(model).invoke({"question": question, "history": history, "engine_version": "5.4.2"})
+
+    assert result["status"] == "done"
+    assert result["answer"] == "간단한 답변입니다."
+    assert result["sources"] == []
+    assert result.get("rounds", 0) == 0
+    assert "corpus_sha256" not in result
+    assert [item["worker"] for item in result["decisions"]] == ["direct_answer"]
+    assert len(model.router_messages) == model.writer_calls == 1
+    assert json.loads(model.writer_messages[0][-1].content) == {"question": question}
+    assert [item.content for item in model.writer_messages[0][1:-1]] == [item["content"] for item in history]
+    assert "검색을 수행하지 않았다" in model.writer_messages[0][0].content
+
+
+@pytest.mark.parametrize("evidence", [[], [EVIDENCE]])
+def test_direct_answer_cannot_bypass_evidence_rules_after_search(evidence):
+    model = FakeLLM([Route(worker="technique", reason="기술 검색"),
+                     Route(worker="direct_answer", reason="검색 없이 답변 시도")])
+    result = build_graph(model, lambda *args, **kwargs: evidence).invoke({"question": "UObject가 뭐야?"})
+    assert result["rounds"] == 1
+    assert result["decisions"][-1]["worker"] == "answer"
+    assert result["status"] == ("done" if evidence else "insufficient")
+    assert model.writer_calls == int(bool(evidence))
+
+
+@pytest.mark.parametrize("text,status", [("", "insufficient"), ("  ", "insufficient"),
+                                        ("요약입니다. [1]", "invalid_citations"),
+                                        ("배열 예시입니다.\n```cpp\nValues[0] = 1;\n```", "done")])
+def test_direct_answer_rejects_empty_or_fabricated_citations_but_preserves_code(text, status):
+    model = FakeLLM([Route(worker="direct_answer", reason="내용 변환")], text)
+    result = build_graph(model, lambda *args, **kwargs: pytest.fail("검색하면 안 됩니다.")).invoke(
+        {"question": "제공한 내용을 정리해줘"})
+    assert result["status"] == status
+    assert result["sources"] == []
+    if status == "done":
+        assert result["answer"] == text
+    else:
+        assert result["answer"] != text
+
+
 @pytest.mark.parametrize("length", [1000, 1001, 8000])
 @pytest.mark.parametrize("has_evidence", [False, True])
 def test_forced_first_search_preserves_long_question(length, has_evidence):

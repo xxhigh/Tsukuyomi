@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class Route(BaseModel):
-    worker: Literal["technique", "troubleshooting", "web_search", "answer"]
+    worker: Literal["technique", "troubleshooting", "web_search", "answer", "direct_answer"]
     query: str = Field(default="", max_length=1000)
     reason: str = Field(max_length=500)
 

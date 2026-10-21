@@ -60,6 +60,33 @@ def test_validation_does_not_echo_key_or_arbitrary_body(client):
     assert "test-secret" not in response.text
 
 
+def test_chat_direct_answer_uses_existing_contract_without_loading_index(client, workspace, monkeypatch):
+    from agents import docs, web
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("간단한 대화에서 검색 경로가 호출되었습니다.")
+
+    monkeypatch.setattr(docs, "retrieve", unexpected)
+    monkeypatch.setattr(docs, "_fingerprint", unexpected)
+    monkeypatch.setattr(web, "search", unexpected)
+    model = FakeLLM([Route(worker="direct_answer", reason="인사")], "안녕하세요!")
+    monkeypatch.setattr(api, "create_llm", lambda *args: model)
+    response = client.post("/api/chat", headers={"X-LLM-API-Key": "test-secret"}, json={
+        "question": "안녕", "engine_version": "5.4", "history": []})
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["status"] == "done"
+    assert result["answer"] == "안녕하세요!"
+    assert result["sources"] == result["warnings"] == result["answer_blocks"] == []
+    assert result["engine_version"] == "5.4"
+    trace = "".join(path.read_text() for path in (workspace / "traces").glob("*.jsonl"))
+    assert '"rounds": 0' in trace
+    assert "direct_answer" in trace
+    assert "test-secret" not in trace
+    assert "안녕하세요" not in trace
+
+
 def test_request_key_is_isolated_and_trace_does_not_store_content(client, workspace, monkeypatch):
     seen = []
     def create_llm(key, model):

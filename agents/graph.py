@@ -1,4 +1,4 @@
-"""Supervisor → 기술/오류/웹 검색 → 근거 기반 답변."""
+"""Supervisor → 간단한 직접 답변 또는 기술/오류/웹 검색 → 근거 기반 답변."""
 
 import json
 import re
@@ -10,7 +10,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.graph import END, START, StateGraph
 from markdown_it import MarkdownIt
 
-from prompts import SUPERVISOR_PROMPT, WRITER_PROMPT
+from prompts import DIRECT_ANSWER_PROMPT, SUPERVISOR_PROMPT, WRITER_PROMPT
 
 from . import docs, documents, knowledge, web
 from .state import ChatState, Route
@@ -28,6 +28,7 @@ def _prompt(system: str, name: str):
 
 SUPERVISOR_TEMPLATE = _prompt(SUPERVISOR_PROMPT, "supervisor_prompt")
 WRITER_TEMPLATE = _prompt(WRITER_PROMPT, "writer_prompt")
+DIRECT_ANSWER_TEMPLATE = _prompt(DIRECT_ANSWER_PROMPT, "direct_answer_prompt")
 
 
 def run_config(source: str, *, run_id: UUID | None = None, engine_version: str | None = None) -> dict:
@@ -94,6 +95,9 @@ def build_graph(llm, retrieve=None, web_search=None):
                  "web_search_available": web_available, "warnings": warnings,
                  "rounds": rounds, "sources": summary}, ensure_ascii=False)}).to_messages()
             route = router.invoke(messages)
+            if route.worker == "direct_answer" and (rounds > 0 or state.get("evidence")):
+                # 검색 후에는 근거 부족·인용 검증을 직접 답변으로 우회할 수 없다.
+                route = Route(worker="answer", reason="검색 결과는 근거 기반 답변 단계에서 처리합니다.")
             if route.worker == "web_search" and not web_available:
                 warnings = list(dict.fromkeys([*warnings, str(web.WebSearchError("unconfigured"))]))
                 route = Route(worker="technique", reason="웹 검색 키가 없어 로컬 자료를 검색합니다.")
@@ -137,6 +141,19 @@ def build_graph(llm, retrieve=None, web_search=None):
         return {"evidence": list(evidence.values())[:10], "rounds": state.get("rounds", 0) + 1,
                 "warnings": warnings}
 
+    def direct_answer(state: ChatState):
+        messages = DIRECT_ANSWER_TEMPLATE.invoke({"history": _history(state), "input": json.dumps(
+            {"question": state["question"]}, ensure_ascii=False)}).to_messages()
+        response = llm.invoke(messages)
+        text = response.content if isinstance(response.content, str) else ""
+        if not text.strip():
+            return {"answer": "답변을 생성하지 못했습니다. 다시 요청해 주세요.",
+                    "sources": [], "status": "insufficient"}
+        if _citation_numbers(text):
+            return {"answer": "확인되지 않은 출처가 포함되어 답변을 표시하지 못했습니다. 다시 요청해 주세요.",
+                    "sources": [], "status": "invalid_citations"}
+        return {"answer": text, "sources": [], "status": "done"}
+
     def answer(state: ChatState):
         if local_retrieval and state.get("corpus_sha256") is not None:
             _check_corpus(state.get("corpus_sha256"))
@@ -171,12 +188,14 @@ def build_graph(llm, retrieve=None, web_search=None):
     graph.add_node("troubleshooting", research)
     graph.add_node("web_search", research_web)
     graph.add_node("answer", answer)
+    graph.add_node("direct_answer", direct_answer)
     graph.add_edge(START, "supervisor")
     graph.add_conditional_edges("supervisor", lambda state: state["route"]["worker"],
                                 {"technique": "technique", "troubleshooting": "troubleshooting",
-                                 "web_search": "web_search", "answer": "answer"})
+                                 "web_search": "web_search", "answer": "answer", "direct_answer": "direct_answer"})
     graph.add_edge("technique", "supervisor")
     graph.add_edge("troubleshooting", "supervisor")
     graph.add_edge("web_search", "supervisor")
     graph.add_edge("answer", END)
+    graph.add_edge("direct_answer", END)
     return graph.compile()

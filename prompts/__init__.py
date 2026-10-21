@@ -5,3 +5,4 @@ from pathlib import Path
 _DIR = Path(__file__).resolve().parent
 SUPERVISOR_PROMPT = (_DIR / "supervisor.md").read_text(encoding="utf-8")
 WRITER_PROMPT = (_DIR / "writer.md").read_text(encoding="utf-8")
+DIRECT_ANSWER_PROMPT = (_DIR / "direct_answer.md").read_text(encoding="utf-8")

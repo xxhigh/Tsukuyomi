@@ -7,7 +7,7 @@
 
 - **Vue.js**: 대화, 요청별 LLM 키 입력, 기술·오류 해결 사례 관리, PDF·Markdown 정보 편집.
 - **FastAPI**: `/api/chat`, `/api/llm/check`, `/api/knowledge`, `/api/knowledge/{id}`, `/api/documents`, `/api/documents/{filename}`, `/api/config`, `/api/health`.
-- **Supervisor**: 질문에 따라 기술/오류/웹 검색 담당을 선택하고 로컬·웹을 합쳐 최대 2회 검색 후 답변합니다.
+- **Supervisor**: 간단한 대화는 직접 답변하고, 기술/오류 질문은 로컬·웹을 합쳐 최대 2회 검색합니다.
 - **RAG**: 로컬 `BAAI/bge-m3` 정규화 임베딩 + FAISS + bigram 재정렬.
 - **외부 LLM**: OpenAI 또는 tool calling을 지원하는 OpenAI 호환 chat completions API.
 
